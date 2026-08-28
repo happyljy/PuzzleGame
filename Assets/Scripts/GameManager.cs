@@ -39,7 +39,7 @@ public class GameManager : MonoBehaviour
     public float gridLineThickness = 2f;                       // 网格线粗细
 
     [Header("UI References")]
-    public Button startButton;
+    //public Button startButton;
     public RectTransform listContent;          // ScrollView 的 Content
     public RectTransform puzzleArea;           // 拼图区域 Panel
     public GameObject victoryPanel;
@@ -61,7 +61,8 @@ public class GameManager : MonoBehaviour
     void Awake()
     {
         Instance = this;
-        startButton.onClick.AddListener(StartNewGame);
+        //startButton.onClick.AddListener(StartNewGame);
+        StartNewGame();
         returnButton.onClick.AddListener(ReturnUnlockedPieces);
 
         // 为提示按钮添加按下和抬起事件
