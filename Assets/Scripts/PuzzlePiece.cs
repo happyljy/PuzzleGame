@@ -42,6 +42,8 @@ public class PuzzlePiece : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     {
         if (!interactable || isLocked) return;
         isDragging = true;
+        // 将当前碎片移到最上层，避免被其他碎片遮挡
+        transform.SetAsLastSibling();
     }
 
     public void OnDrag(PointerEventData eventData)

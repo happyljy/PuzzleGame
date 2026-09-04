@@ -1,11 +1,25 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance;
+
+    [Header("Game Flow")]
+    public float easyTimeLimit = 120f;
+    public float normalTimeLimit = 240f;
+    public float hardTimeLimit = 360f;
+    public Text rewardText;          // 胜利面板中显示奖励的Text（可选）
+
+    private string selectedCategory;
+    private float timeRemaining;
+    private bool isVictory = false;
+
+    [Header("UI References")]
+    public Button backButton;   // 返回按钮
 
     [Header("Zoom & Pan Controls")]
     public Button zoomInButton;
@@ -57,12 +71,14 @@ public class GameManager : MonoBehaviour
     private List<PuzzlePiece> activePieces = new List<PuzzlePiece>(); // 拼图区域中的碎片
     private int totalPieces;
     private int lockedCount = 0;
+    private int gridSize = 6;
 
     void Awake()
     {
+        backButton.onClick.AddListener(BackToMenu);
         Instance = this;
         //startButton.onClick.AddListener(StartNewGame);
-        StartNewGame();
+        //StartNewGame();
         returnButton.onClick.AddListener(ReturnUnlockedPieces);
 
         // 为提示按钮添加按下和抬起事件
@@ -97,6 +113,46 @@ public class GameManager : MonoBehaviour
         }
 
         victoryPanel.SetActive(false);
+    }
+
+    void Start()
+    {
+        selectedCategory = PlayerPrefs.GetString("SelectedCategory", "1");
+        gridSize = PlayerPrefs.GetInt("Difficulty", 6);
+
+        // 根据难度设置时间限制
+        switch (gridSize)
+        {
+            case 6:
+                timeRemaining = easyTimeLimit;
+                break;
+            case 8:
+                timeRemaining = normalTimeLimit;
+                break;
+            case 10:
+                timeRemaining = hardTimeLimit;
+                break;
+            default:
+                timeRemaining = easyTimeLimit;
+                break;
+        }
+
+        // 开始游戏
+        StartNewGame();
+    }
+
+    void Update()
+    {
+        if (!isVictory)
+        {
+            timeRemaining -= Time.deltaTime;
+            if (timeRemaining <= 0)
+            {
+                timeRemaining = 0;
+                // 超时：可以显示失败或仍然允许完成但无额外奖励
+                // 这里我们允许继续，但胜利时不会获得额外奖励
+            }
+        }
     }
 
     void StartNewGame()
@@ -140,17 +196,27 @@ public class GameManager : MonoBehaviour
             contentOffset = Vector2.zero;
         }
 
-
-        // 加载图片
-        allSprites = Resources.LoadAll<Sprite>("Art");
-        if (allSprites.Length == 0) { Debug.LogError("No sprites in Art"); return; }
+        // 加载指定分类文件夹下的图片
+        string folderPath = "Art/" + selectedCategory;
+        allSprites = Resources.LoadAll<Sprite>(folderPath);
+        if (allSprites.Length == 0)
+        {
+            Debug.LogError($"No sprites found in {folderPath}");
+            return;
+        }
+        // 随机选择一张图片
         chosenSprite = allSprites[Random.Range(0, allSprites.Length)];
         Texture2D texture = chosenSprite.texture;
 
         // 计算行列数（保持最低 5x5）
-        float aspect = (float)texture.width / texture.height;
-        if (aspect >= 1f) { cols = Mathf.Max(minCols, Mathf.RoundToInt(minRows * aspect)); rows = minRows; }
-        else { rows = Mathf.Max(minRows, Mathf.RoundToInt(minCols / aspect)); cols = minCols; }
+        //float aspect = (float)texture.width / texture.height;
+        //if (aspect >= 1f) { cols = Mathf.Max(minCols, Mathf.RoundToInt(minRows * aspect)); rows = minRows; }
+        //else { rows = Mathf.Max(minRows, Mathf.RoundToInt(minCols / aspect)); cols = minCols; }
+        //totalPieces = rows * cols;
+
+        // ★ 固定行列数
+        rows = gridSize;
+        cols = gridSize;
         totalPieces = rows * cols;
 
         // 动态计算碎片大小
@@ -366,6 +432,29 @@ public class GameManager : MonoBehaviour
         lockedCount++;
         if (lockedCount >= totalPieces)
         {
+            isVictory = true;
+            int baseReward = 0;
+            switch (gridSize)
+            {
+                case 6: baseReward = 5; break;
+                case 8: baseReward = 10; break;
+                case 10: baseReward = 15; break;
+            }
+
+            int bonus = (timeRemaining > 0) ? 3 : 0;
+            int totalReward = baseReward + bonus;
+
+            // 发放金币
+            GameDataManager.AddCoins(totalReward);
+
+            // 更新胜利面板显示
+            if (rewardText != null)
+            {
+                rewardText.text = $"获得金币：{baseReward}";
+                if (bonus > 0)
+                    rewardText.text += $" + 限时奖励 {bonus} = {totalReward}";
+            }
+
             victoryPanel.SetActive(true);
         }
     }
@@ -460,10 +549,14 @@ public class GameManager : MonoBehaviour
             puzzleContent.anchoredPosition = contentOffset;
         }
     }
-
+    void BackToMenu()
+    {
+        // 加载主菜单场景（请确保场景名正确）
+        SceneManager.LoadScene("LevelScene");
+    }
 }
 
-
+  
 
 // 辅助数据结构
 public class PuzzlePieceData
