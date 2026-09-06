@@ -5,7 +5,7 @@ public static class GameDataManager
     // 分类列表（顺序需与按钮一致）
     public static string[] Categories = { "1", "2", "3" };
     // 对应分类的价格，0表示初始已解锁
-    public static int[] CategoryPrices = { 0, 100, 200 };
+    public static int[] CategoryPrices = { 0, 3, 200 };
 
     private const string CoinsKey = "Coins";
     private const string UnlockPrefix = "Unlock_";

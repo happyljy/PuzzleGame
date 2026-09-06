@@ -1,12 +1,18 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
+using System.Collections;
 
 public class MainMenuManager : MonoBehaviour
 {
     [Header("分类按钮")]
     public Button[] categoryButtons;          // 顺序与 GameDataManager.Categories 一致
     public Text[] categoryButtonTexts;        // 可选，用于更新按钮文字
+
+    [Header("分类预览设置")]
+    public Image[] categoryPreviewImages;      // 与分类按钮一一对应
+    public float previewChangeInterval = 3f;   // 图片切换间隔
+    public float fadeDuration = 0.5f;          // 渐变时间
 
     [Header("难度面板")]
     public GameObject difficultyPanel;
@@ -49,6 +55,8 @@ public class MainMenuManager : MonoBehaviour
         difficultyPanel.SetActive(false);
         purchasePanel.SetActive(false);
         UpdateCoinDisplay();
+        // 启动预览图更新协程
+        StartCoroutine(UpdateCategoryPreviews());
     }
 
     void OnEnable()
@@ -132,5 +140,52 @@ public class MainMenuManager : MonoBehaviour
     {
         if (coinText != null)
             coinText.text = "金币：" + GameDataManager.Coins;
+    }
+
+    // 协程：定期为每个分类按钮更新预览图（渐变切换）
+    IEnumerator UpdateCategoryPreviews()
+    {
+        while (true)
+        {
+            for (int i = 0; i < categoryButtons.Length; i++)
+            {
+                string category = GameDataManager.Categories[i];
+                Sprite[] sprites = Resources.LoadAll<Sprite>("Art/" + category);
+                if (sprites.Length > 0 && i < categoryPreviewImages.Length)
+                {
+                    Sprite newSprite = sprites[Random.Range(0, sprites.Length)];
+                    yield return StartCoroutine(FadeToSprite(categoryPreviewImages[i], newSprite));
+                }
+            }
+            yield return new WaitForSeconds(previewChangeInterval);
+        }
+    }
+
+    // 渐变切换图片
+    IEnumerator FadeToSprite(Image image, Sprite newSprite)
+    {
+        // 淡出
+        float elapsed = 0f;
+        Color startColor = image.color;
+        Color transparentColor = new Color(startColor.r, startColor.g, startColor.b, 0f);
+
+        while (elapsed < fadeDuration)
+        {
+            elapsed += Time.deltaTime;
+            image.color = Color.Lerp(startColor, transparentColor, elapsed / fadeDuration);
+            yield return null;
+        }
+
+        image.sprite = newSprite;
+
+        // 淡入
+        elapsed = 0f;
+        while (elapsed < fadeDuration)
+        {
+            elapsed += Time.deltaTime;
+            image.color = Color.Lerp(transparentColor, startColor, elapsed / fadeDuration);
+            yield return null;
+        }
+        image.color = startColor;
     }
 }
