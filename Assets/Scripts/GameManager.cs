@@ -21,17 +21,17 @@ public class GameManager : MonoBehaviour
     [Header("UI References")]
     public Button backButton;   // 返回按钮
 
-    [Header("Zoom & Pan Controls")]
-    public Button zoomInButton;
-    public Button zoomOutButton;
-    public Button moveUpButton;
-    public Button moveDownButton;
-    public Button moveLeftButton;
-    public Button moveRightButton;
+    //[Header("Zoom & Pan Controls")]
+    //public Button zoomInButton;
+    //public Button zoomOutButton;
+    //public Button moveUpButton;
+    //public Button moveDownButton;
+    //public Button moveLeftButton;
+    //public Button moveRightButton;
 
-    public float zoomStep = 0.1f;        // 每次缩放增量
-    public float maxZoom = 2f;           // 最大缩放倍数
-    public float moveStep = 20f;         // 每次移动像素距离
+    //public float zoomStep = 0.1f;        // 每次缩放增量
+    //public float maxZoom = 2f;           // 最大缩放倍数
+    //public float moveStep = 20f;         // 每次移动像素距离
 
     private RectTransform puzzleContent; // 内部容器
     private float currentZoom = 1f;      // 当前缩放
@@ -73,6 +73,13 @@ public class GameManager : MonoBehaviour
     private int lockedCount = 0;
     private int gridSize = 6;
 
+    private bool isMultiTouch = false;
+    public bool IsMultiTouch => isMultiTouch;
+
+    private float maxZoom = 2f;   // 保留最大缩放
+    private float minZoom = 1f;   // 最小缩放
+    private int selectedImageIndex = -1;
+
     void Awake()
     {
         backButton.onClick.AddListener(BackToMenu);
@@ -98,13 +105,13 @@ public class GameManager : MonoBehaviour
         pointerUpEntry.callback.AddListener((data) => { HideHint(); });
         trigger.triggers.Add(pointerUpEntry);
 
-        // 缩放和移动按钮
-        zoomInButton.onClick.AddListener(ZoomIn);
-        zoomOutButton.onClick.AddListener(ZoomOut);
-        moveUpButton.onClick.AddListener(() => MoveContent(Vector2.up));
-        moveDownButton.onClick.AddListener(() => MoveContent(Vector2.down));
-        moveLeftButton.onClick.AddListener(() => MoveContent(Vector2.left));
-        moveRightButton.onClick.AddListener(() => MoveContent(Vector2.right));
+        //// 缩放和移动按钮
+        //zoomInButton.onClick.AddListener(ZoomIn);
+        //zoomOutButton.onClick.AddListener(ZoomOut);
+        //moveUpButton.onClick.AddListener(() => MoveContent(Vector2.up));
+        //moveDownButton.onClick.AddListener(() => MoveContent(Vector2.down));
+        //moveLeftButton.onClick.AddListener(() => MoveContent(Vector2.left));
+        //moveRightButton.onClick.AddListener(() => MoveContent(Vector2.right));
 
         // 确保 PuzzleArea 有 RectMask2D 用于裁剪
         if (puzzleArea.GetComponent<RectMask2D>() == null)
@@ -119,6 +126,11 @@ public class GameManager : MonoBehaviour
     {
         selectedCategory = PlayerPrefs.GetString("SelectedCategory", "1");
         gridSize = PlayerPrefs.GetInt("Difficulty", 6);
+        int imageIndex = PlayerPrefs.GetInt("SelectedImageIndex", -1);
+
+        // 加载图片逻辑在 StartNewGame 中，需要根据 imageIndex 决定
+        // 此处先保存到字段，在 StartNewGame 中使用
+        selectedImageIndex = imageIndex;
 
         // 根据难度设置时间限制
         switch (gridSize)
@@ -153,6 +165,7 @@ public class GameManager : MonoBehaviour
                 // 这里我们允许继续，但胜利时不会获得额外奖励
             }
         }
+        HandleTouchInput();
     }
 
     void StartNewGame()
@@ -199,13 +212,15 @@ public class GameManager : MonoBehaviour
         // 加载指定分类文件夹下的图片
         string folderPath = "Art/" + selectedCategory;
         allSprites = Resources.LoadAll<Sprite>(folderPath);
-        if (allSprites.Length == 0)
-        {
-            Debug.LogError($"No sprites found in {folderPath}");
-            return;
-        }
-        // 随机选择一张图片
-        chosenSprite = allSprites[Random.Range(0, allSprites.Length)];
+        if (allSprites.Length == 0) { Debug.LogError("000"); return; }
+
+        // 按文件名排序
+        System.Array.Sort(allSprites, (a, b) => string.Compare(a.name, b.name));
+
+        if (selectedImageIndex >= 0 && selectedImageIndex < allSprites.Length)
+            chosenSprite = allSprites[selectedImageIndex];
+        else
+            chosenSprite = allSprites[Random.Range(0, allSprites.Length)];
         Texture2D texture = chosenSprite.texture;
 
         // 计算行列数（保持最低 5x5）
@@ -509,23 +524,81 @@ public class GameManager : MonoBehaviour
         img.raycastTarget = false;   // 让线不阻挡点击
     }
 
-    void ZoomIn()
+    //void ZoomIn()
+    //{
+    //    currentZoom = Mathf.Min(currentZoom + zoomStep, maxZoom);
+    //    ApplyContentTransform();
+    //}
+
+    //void ZoomOut()
+    //{
+    //    currentZoom = Mathf.Max(currentZoom - zoomStep, 1f); // 最小为1
+    //    ApplyContentTransform();
+    //}
+
+    //void MoveContent(Vector2 direction)
+    //{
+    //    // 根据缩放调整移动步长（可选，也可以固定）
+    //    contentOffset += direction * moveStep;
+    //    ApplyContentTransform();
+    //}
+
+    void HandleTouchInput()
     {
-        currentZoom = Mathf.Min(currentZoom + zoomStep, maxZoom);
-        ApplyContentTransform();
+        if (Input.touchCount == 1)
+        {
+            isMultiTouch = false;
+        }
+        else if (Input.touchCount >= 2)
+        {
+            isMultiTouch = true;
+
+            Touch touch0 = Input.GetTouch(0);
+            Touch touch1 = Input.GetTouch(1);
+
+            // 检查两个触摸点是否都在 PuzzleArea 内，防止在列表等区域缩放
+            if (!IsPointOverPuzzleArea(touch0.position) || !IsPointOverPuzzleArea(touch1.position))
+            {
+                // 如果触摸点不在区域内，不进行缩放平移，但保持 isMultiTouch = true 防止碎片拖拽
+                return;
+            }
+
+            // 缩放计算
+            Vector2 touch0PrevPos = touch0.position - touch0.deltaPosition;
+            Vector2 touch1PrevPos = touch1.position - touch1.deltaPosition;
+            float prevDistance = Vector2.Distance(touch0PrevPos, touch1PrevPos);
+            float currentDistance = Vector2.Distance(touch0.position, touch1.position);
+
+            if (prevDistance > 0.001f)
+            {
+                float zoomFactor = currentDistance / prevDistance;
+                currentZoom = Mathf.Clamp(currentZoom * zoomFactor, minZoom, maxZoom);
+            }
+
+            // 平移计算
+            Vector2 prevMidpoint = (touch0PrevPos + touch1PrevPos) / 2f;
+            Vector2 currentMidpoint = (touch0.position + touch1.position) / 2f;
+
+            Vector2 localCurrent, localPrev;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                puzzleArea, currentMidpoint, null, out localCurrent);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                puzzleArea, prevMidpoint, null, out localPrev);
+            Vector2 localDelta = localCurrent - localPrev;
+
+            contentOffset += localDelta;
+            ApplyContentTransform();
+        }
+        else
+        {
+            isMultiTouch = false;
+        }
     }
 
-    void ZoomOut()
+    // 辅助方法：判断屏幕坐标是否在 PuzzleArea 内
+    bool IsPointOverPuzzleArea(Vector2 screenPoint)
     {
-        currentZoom = Mathf.Max(currentZoom - zoomStep, 1f); // 最小为1
-        ApplyContentTransform();
-    }
-
-    void MoveContent(Vector2 direction)
-    {
-        // 根据缩放调整移动步长（可选，也可以固定）
-        contentOffset += direction * moveStep;
-        ApplyContentTransform();
+        return RectTransformUtility.RectangleContainsScreenPoint(puzzleArea, screenPoint, null);
     }
 
     void ApplyContentTransform()

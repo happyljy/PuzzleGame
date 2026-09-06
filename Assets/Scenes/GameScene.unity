@@ -765,15 +765,6 @@ MonoBehaviour:
   hardTimeLimit: 360
   rewardText: {fileID: 831001580}
   backButton: {fileID: 1229515757}
-  zoomInButton: {fileID: 958644752}
-  zoomOutButton: {fileID: 1250160584}
-  moveUpButton: {fileID: 1090185530}
-  moveDownButton: {fileID: 1901021961}
-  moveLeftButton: {fileID: 2072998345}
-  moveRightButton: {fileID: 865134769}
-  zoomStep: 0.1
-  maxZoom: 2
-  moveStep: 20
   hintButton: {fileID: 758082142}
   returnButton: {fileID: 563519245}
   listPieceSize: 200
@@ -1393,7 +1384,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &865134766
 RectTransform:
   m_ObjectHideFlags: 0
@@ -1514,7 +1505,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &958644751
 RectTransform:
   m_ObjectHideFlags: 0
@@ -1771,7 +1762,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1090185527
 RectTransform:
   m_ObjectHideFlags: 0
@@ -2511,7 +2502,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1250160583
 RectTransform:
   m_ObjectHideFlags: 0
@@ -3055,7 +3046,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1901021958
 RectTransform:
   m_ObjectHideFlags: 0
@@ -3525,7 +3516,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &2072998342
 RectTransform:
   m_ObjectHideFlags: 0

@@ -41,15 +41,17 @@ public class PuzzlePiece : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     public void OnBeginDrag(PointerEventData eventData)
     {
         if (!interactable || isLocked) return;
+        if (GameManager.Instance != null && GameManager.Instance.IsMultiTouch) return;
+        if (Input.touchCount >= 2) return;  // 直接检查全局触摸数量，更可靠
         isDragging = true;
-        // 将当前碎片移到最上层，避免被其他碎片遮挡
         transform.SetAsLastSibling();
     }
 
     public void OnDrag(PointerEventData eventData)
     {
         if (!interactable || isLocked) return;
-
+        if (GameManager.Instance != null && GameManager.Instance.IsMultiTouch) return;
+        if (Input.touchCount >= 2) return;  // 双指时立即退出，不再更新位置
         RectTransform puzzleArea = GameManager.Instance.puzzleArea;
         if (puzzleArea == null) return;
 
