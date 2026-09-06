@@ -8,6 +8,9 @@ public class GameManager : MonoBehaviour
 {
     public static GameManager Instance;
 
+    public Button favoriteButton;   // 收藏按钮
+    private int currentImageIndex = -1; // 实际使用的图片索引
+
     [Header("Game Flow")]
     public float easyTimeLimit = 120f;
     public float normalTimeLimit = 240f;
@@ -79,9 +82,10 @@ public class GameManager : MonoBehaviour
     private float maxZoom = 2f;   // 保留最大缩放
     private float minZoom = 1f;   // 最小缩放
     private int selectedImageIndex = -1;
-
+ 
     void Awake()
     {
+        favoriteButton.onClick.AddListener(ToggleFavorite);
         backButton.onClick.AddListener(BackToMenu);
         Instance = this;
         //startButton.onClick.AddListener(StartNewGame);
@@ -217,12 +221,21 @@ public class GameManager : MonoBehaviour
         // 按文件名排序
         System.Array.Sort(allSprites, (a, b) => string.Compare(a.name, b.name));
 
+        // 随机选择或指定图片
         if (selectedImageIndex >= 0 && selectedImageIndex < allSprites.Length)
+        {
             chosenSprite = allSprites[selectedImageIndex];
+            currentImageIndex = selectedImageIndex;
+        }
         else
-            chosenSprite = allSprites[Random.Range(0, allSprites.Length)];
+        {
+            currentImageIndex = Random.Range(0, allSprites.Length);
+            chosenSprite = allSprites[currentImageIndex];
+            selectedImageIndex = currentImageIndex; // 更新，用于收藏
+        }
         Texture2D texture = chosenSprite.texture;
-
+        // 更新收藏按钮颜色
+        UpdateFavoriteButtonColor();
         // 计算行列数（保持最低 5x5）
         //float aspect = (float)texture.width / texture.height;
         //if (aspect >= 1f) { cols = Mathf.Max(minCols, Mathf.RoundToInt(minRows * aspect)); rows = minRows; }
@@ -448,26 +461,51 @@ public class GameManager : MonoBehaviour
         if (lockedCount >= totalPieces)
         {
             isVictory = true;
-            int baseReward = 0;
+            int baseReward = 0;          // 金币基础奖励（首通）
+            int experienceReward = 0;    // 经验奖励
             switch (gridSize)
             {
-                case 6: baseReward = 5; break;
-                case 8: baseReward = 10; break;
-                case 10: baseReward = 15; break;
+                case 2:
+                    baseReward = 5;
+                    experienceReward = 3;
+                    break;
+                case 8:
+                    baseReward = 10;
+                    experienceReward = 5;
+                    break;
+                case 10:
+                    baseReward = 15;
+                    experienceReward = 8;
+                    break;
             }
 
             int bonus = (timeRemaining > 0) ? 3 : 0;
             int totalReward = baseReward + bonus;
 
-            // 发放金币
-            GameDataManager.AddCoins(totalReward);
+            bool firstTime = !GameDataManager.HasClaimedReward(selectedCategory, currentImageIndex, gridSize);
+
+            // 经验总是发放（使用新经验值）
+            GameDataManager.AddExperience(experienceReward);
+
+            if (firstTime)
+            {
+                // 首次：发放全部金币
+                GameDataManager.AddCoins(totalReward);
+                GameDataManager.SetRewardClaimed(selectedCategory, currentImageIndex, gridSize);
+            }
 
             // 更新胜利面板显示
             if (rewardText != null)
             {
-                rewardText.text = $"获得金币：{baseReward}";
-                if (bonus > 0)
-                    rewardText.text += $" + 限时奖励 {bonus} = {totalReward}";
+                if (firstTime)
+                {
+                    rewardText.text = $"获得金币：{baseReward}";
+                    if (bonus > 0) rewardText.text += $" + 限时奖励 {bonus} = {totalReward}";
+                }
+                else
+                {
+                    rewardText.text = "重复完成，仅获得经验";
+                }
             }
 
             victoryPanel.SetActive(true);
@@ -542,7 +580,19 @@ public class GameManager : MonoBehaviour
     //    contentOffset += direction * moveStep;
     //    ApplyContentTransform();
     //}
+    private void UpdateFavoriteButtonColor()
+    {
+        if (favoriteButton == null || selectedCategory == null || currentImageIndex < 0) return;
 
+        Image buttonImage = favoriteButton.GetComponent<Image>();
+        if (buttonImage != null)
+        {
+            // 已收藏：金色 (1, 0.84, 0, 1)，未收藏：白色
+            buttonImage.color = GameDataManager.IsFavorite(selectedCategory, currentImageIndex)
+                ? new Color(1f, 0.84f, 0f, 1f)
+                : Color.white;
+        }
+    }
     void HandleTouchInput()
     {
         if (Input.touchCount == 1)
@@ -626,6 +676,18 @@ public class GameManager : MonoBehaviour
     {
         // 加载主菜单场景（请确保场景名正确）
         SceneManager.LoadScene("LevelScene");
+    }
+    void ToggleFavorite()
+    {
+        if (selectedCategory == null || currentImageIndex < 0) return;
+
+        if (GameDataManager.IsFavorite(selectedCategory, currentImageIndex))
+            GameDataManager.RemoveFavorite(selectedCategory, currentImageIndex);
+        else
+            GameDataManager.AddFavorite(selectedCategory, currentImageIndex);
+
+        // 更新按钮颜色
+        UpdateFavoriteButtonColor();
     }
 }
 

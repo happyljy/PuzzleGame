@@ -36,6 +36,34 @@ public class MainMenuManager : MonoBehaviour
     [Header("金币显示")]
     public Text coinText;
 
+    [Header("个人信息")]
+    public GameObject profilePanel;
+    public Text profileNameText;
+    public Text profileLevelText;
+    public Slider experienceSlider;
+    public Button favoritesButton;
+    public Button profileBackButton;
+
+    [Header("姓名输入面板")]
+    public GameObject nameInputPanel;
+    public InputField nameInputField;
+    public Button nameConfirmButton;
+
+    [Header("我的收藏面板")]
+    public GameObject favoritesPanel;
+    public RectTransform favoritesScrollContent;
+    public Button favoritesCloseButton;
+
+    [Header("底部按钮")]
+    public Button profileButton;      // 个人信息按钮
+    public Button categoryButton;     // CategoryScrollView按钮
+
+    [Header("难度面板取消按钮")]
+    public Button difficultyCancelButton;
+
+    // 用于记录上一个面板，以便取消返回
+    private GameObject previousPanel = null;
+
     private string selectedCategory;
     private int selectedImageIndex = -1;
     private string pendingPurchaseCategory;
@@ -48,16 +76,38 @@ public class MainMenuManager : MonoBehaviour
         // 测试用：编辑器下重置数据（可选）
         // GameDataManager.ResetForEditor();
     }
-
+    
     void Start()
     {
-        // 确保 CategoryScrollView 位于最底层，其他面板隐藏
-        categoryScrollView.SetActive(true);
-        //categoryScrollView.transform.SetAsFirstSibling();
-        categoryScrollView.transform.SetAsLastSibling(); // 将 CategoryScrollView 移到最上层
-        imageSelectPanel.SetActive(false);
-        difficultyPanel.SetActive(false);
-        purchasePanel.SetActive(false);
+        // 底部按钮
+        profileButton.onClick.AddListener(() => ShowPanel(profilePanel));
+        categoryButton.onClick.AddListener(() => ShowPanel(categoryScrollView));
+        profileBackButton.onClick.AddListener(() => ShowPanel(categoryScrollView));
+        favoritesButton.onClick.AddListener(() => ShowPanel(favoritesPanel));
+        favoritesCloseButton.onClick.AddListener(() => ShowPanel(profilePanel));
+
+        // 姓名确认
+        nameConfirmButton.onClick.AddListener(OnNameConfirmed);
+
+        // 难度取消
+        difficultyCancelButton.onClick.AddListener(() => ShowPanel(previousPanel));
+
+        // 初始显示
+        if (string.IsNullOrEmpty(GameDataManager.PlayerName))
+        {
+            ShowPanel(nameInputPanel);
+        }
+        else
+        {
+            ShowPanel(categoryScrollView);
+        }
+        //// 确保 CategoryScrollView 位于最底层，其他面板隐藏
+        //categoryScrollView.SetActive(true);
+        ////categoryScrollView.transform.SetAsFirstSibling();
+        //categoryScrollView.transform.SetAsLastSibling(); // 将 CategoryScrollView 移到最上层
+        //imageSelectPanel.SetActive(false);
+        //difficultyPanel.SetActive(false);
+        //purchasePanel.SetActive(false);
 
         // 按钮事件
         easyButton.onClick.AddListener(() => StartGame(2));
@@ -75,20 +125,50 @@ public class MainMenuManager : MonoBehaviour
     void OnEnable()
     {
         UpdateCoinDisplay();
+        UpdateProfileUI();   // 添加这一行，确保数据刷新
     }
 
     void ShowPanel(GameObject panelToShow)
     {
-        // 始终不隐藏 CategoryScrollView
+        // 先记录当前激活的面板（用于难度取消返回）
+        if (panelToShow == difficultyPanel)
+        {
+            if (imageSelectPanel.activeSelf) previousPanel = imageSelectPanel;
+            else if (favoritesPanel.activeSelf) previousPanel = favoritesPanel;
+            else previousPanel = categoryScrollView;
+        }
+
+        // 隐藏所有面板
+        categoryScrollView.SetActive(false);
+        profilePanel.SetActive(false);
+        favoritesPanel.SetActive(false);
         imageSelectPanel.SetActive(false);
         difficultyPanel.SetActive(false);
         purchasePanel.SetActive(false);
+        nameInputPanel.SetActive(false);
 
-        if (panelToShow != null && panelToShow != categoryScrollView)
+        // 如果 panelToShow 为 null，则只隐藏，不显示任何面板
+        if (panelToShow == null) return;
+
+        // 显示目标面板
+        panelToShow.SetActive(true);
+        panelToShow.transform.SetAsLastSibling();
+
+        // 如果是名字输入面板，额外确保它在最顶部
+        if (panelToShow == nameInputPanel)
         {
-            panelToShow.SetActive(true);
-            panelToShow.transform.SetAsLastSibling();   // 确保面板在最上层
+            panelToShow.transform.SetAsLastSibling();
+            Canvas canvas = panelToShow.GetComponent<Canvas>();
+            if (canvas != null)
+            {
+                canvas.overrideSorting = true;
+                canvas.sortingOrder = 999;
+            }
         }
+
+        // 更新个人信息UI
+        if (panelToShow == profilePanel) UpdateProfileUI();
+        if (panelToShow == favoritesPanel) PopulateFavoritesPanel();
     }
 
     void GenerateCategoryButtons()
@@ -345,5 +425,70 @@ public class MainMenuManager : MonoBehaviour
     {
         if (coinText != null)
             coinText.text = "金币：" + GameDataManager.Coins;
+    }
+    void OnNameConfirmed()
+    {
+        string name = nameInputField.text.Trim();
+        if (!string.IsNullOrEmpty(name))
+        {
+            GameDataManager.PlayerName = name;
+            ShowPanel(categoryScrollView);
+        }
+    }
+    void UpdateProfileUI()
+    {
+        Debug.Log("更新个人信息 UI");
+        if (profileNameText != null) profileNameText.text = GameDataManager.PlayerName;
+        if (profileLevelText != null)
+        {
+            profileLevelText.text = $"等级 {GameDataManager.Level}  {GameDataManager.Experience}/{GameDataManager.GetRequiredExperience(GameDataManager.Level)}";
+        }
+
+        if (experienceSlider != null)
+        {
+            experienceSlider.maxValue = GameDataManager.GetRequiredExperience(GameDataManager.Level);
+            experienceSlider.value = GameDataManager.Experience;
+            experienceSlider.interactable = false;
+        }
+    }
+    void PopulateFavoritesPanel()
+    {
+        // 清空
+        foreach (Transform child in favoritesScrollContent) Destroy(child.gameObject);
+
+        // 设置Grid
+        GridLayoutGroup grid = favoritesScrollContent.GetComponent<GridLayoutGroup>();
+        if (grid == null) grid = favoritesScrollContent.gameObject.AddComponent<GridLayoutGroup>();
+        grid.cellSize = new Vector2(150, 150);
+        grid.spacing = new Vector2(10, 10);
+        grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        grid.constraintCount = 3;
+
+        List<string> favorites = GameDataManager.GetFavorites();
+        foreach (string fav in favorites)
+        {
+            string[] parts = fav.Split('_');
+            if (parts.Length != 2) continue;
+            string category = parts[0];
+            int imageIndex;
+            if (!int.TryParse(parts[1], out imageIndex)) continue;
+
+            // 加载对应图片
+            Sprite[] sprites = Resources.LoadAll<Sprite>("Art/" + category);
+            System.Array.Sort(sprites, (a, b) => string.Compare(a.name, b.name));
+            if (imageIndex < 0 || imageIndex >= sprites.Length) continue;
+
+            GameObject btnObj = Instantiate(imageButtonPrefab, favoritesScrollContent);
+            Button btn = btnObj.GetComponent<Button>();
+            Image img = btnObj.transform.Find("Image")?.GetComponent<Image>();
+            if (img != null) img.sprite = sprites[imageIndex];
+
+            string cat = category; int idx = imageIndex;
+            btn.onClick.AddListener(() => {
+                selectedCategory = cat;
+                selectedImageIndex = idx;
+                ShowPanel(difficultyPanel);
+            });
+        }
     }
 }
