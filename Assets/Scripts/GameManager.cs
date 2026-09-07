@@ -174,6 +174,14 @@ public class GameManager : MonoBehaviour
 
     void StartNewGame()
     {
+        // 检查体力是否足够
+        if (!GameDataManager.ConsumeStamina(GameDataManager.PuzzleStaminaCost))
+        {
+            Debug.Log("体力不足，无法开始拼图");
+            // 可以显示提示，然后返回主菜单
+            BackToMenu();
+            return;
+        }
         // 清除旧提示图
         if (hintImage != null)
         {

@@ -1,4 +1,5 @@
 using UnityEngine;
+using System;
 using System.Collections.Generic;
 
 public static class GameDataManager
@@ -22,6 +23,88 @@ public static class GameDataManager
     private const string ExperienceKey = "Experience";
     private const string FavoritesKey = "Favorites";
     private const string RewardClaimedPrefix = "RewardClaimed_";
+    // 体力系统
+    private const string StaminaKey = "Stamina";
+    private const string LastStaminaTimeKey = "LastStaminaTime";
+    private const int BaseStamina = 100;                    // 初始体力上限
+    private const int StaminaIncreasePer5Levels = 50;       // 每5级增加的上限
+    private const int StaminaRecoveryIntervalSeconds = 60;  // 每10秒恢复1点
+    private const int StaminaRecoveryAmount = 1;            // 每次恢复量
+    public const int PuzzleStaminaCost = 10;                // 拼图消耗体力
+
+    // 当前体力
+    public static int Stamina
+    {
+        get
+        {
+            UpdateStaminaRecovery(); // 读取前先根据离线时间更新
+            return PlayerPrefs.GetInt(StaminaKey, MaxStamina);
+        }
+        private set
+        {
+            PlayerPrefs.SetInt(StaminaKey, value);
+            PlayerPrefs.Save();
+        }
+    }
+    // 体力上限（根据等级计算）
+    public static int MaxStamina
+    {
+        get
+        {
+            int levelGroup = (Level - 1) / 5; // 等级1-4：0，5-9：1，10-14：2...
+            return BaseStamina + levelGroup * StaminaIncreasePer5Levels;
+        }
+    }
+
+    // 增加体力（不超过上限）
+    public static void AddStamina(int amount)
+    {
+        UpdateStaminaRecovery();
+        Stamina = Mathf.Min(MaxStamina, Stamina + amount);
+    }
+
+    // 消耗体力，成功返回true，失败返回false
+    public static bool ConsumeStamina(int amount)
+    {
+        UpdateStaminaRecovery();
+        if (Stamina >= amount)
+        {
+            Stamina -= amount;
+            return true;
+        }
+        return false;
+    }
+
+    // 根据离线时间更新体力
+    private static void UpdateStaminaRecovery()
+    {
+        long lastTimeTicks = long.Parse(PlayerPrefs.GetString(LastStaminaTimeKey, DateTime.UtcNow.Ticks.ToString()));
+        DateTime lastTime = new DateTime(lastTimeTicks);
+        TimeSpan elapsed = DateTime.UtcNow - lastTime;
+
+        int recoveryCount = (int)(elapsed.TotalSeconds / StaminaRecoveryIntervalSeconds);
+        if (recoveryCount > 0)
+        {
+            int currentStamina = PlayerPrefs.GetInt(StaminaKey, MaxStamina);
+            int newStamina = Mathf.Min(MaxStamina, currentStamina + recoveryCount * StaminaRecoveryAmount);
+            PlayerPrefs.SetInt(StaminaKey, newStamina);
+            // 更新最后更新时间（减去多余的时间，保留不足一次恢复的秒数）
+            DateTime newLastTime = lastTime.AddSeconds(recoveryCount * StaminaRecoveryIntervalSeconds);
+            PlayerPrefs.SetString(LastStaminaTimeKey, newLastTime.Ticks.ToString());
+            PlayerPrefs.Save();
+        }
+    }
+
+    // 初始化体力系统（首次游戏时设置满体力）
+    public static void InitStaminaSystem()
+    {
+        if (!PlayerPrefs.HasKey(StaminaKey))
+        {
+            PlayerPrefs.SetInt(StaminaKey, MaxStamina);
+            PlayerPrefs.SetString(LastStaminaTimeKey, DateTime.UtcNow.Ticks.ToString());
+            PlayerPrefs.Save();
+        }
+    }
     // 金币
     public static int Coins
     {

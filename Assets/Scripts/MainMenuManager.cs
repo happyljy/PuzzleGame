@@ -6,6 +6,13 @@ using System.Collections.Generic;
 
 public class MainMenuManager : MonoBehaviour
 {
+    [Header("广告恢复")]
+    public Button adStaminaButton;   // 看广告恢复体力按钮
+
+    [Header("体力显示")]
+    public Text staminaText;         // 显示体力/上限
+    public Slider staminaSlider;     // 可选，体力条
+
     [Header("分类 ScrollView")]
     public GameObject categoryScrollView;             // 分类 ScrollView 物体（整个 ScrollView）
     public RectTransform categoryScrollContent;      // 分类按钮的父物体（Content）
@@ -42,7 +49,7 @@ public class MainMenuManager : MonoBehaviour
     public Text profileLevelText;
     public Slider experienceSlider;
     public Button favoritesButton;
-    public Button profileBackButton;
+   // public Button profileBackButton;
 
     [Header("姓名输入面板")]
     public GameObject nameInputPanel;
@@ -61,13 +68,16 @@ public class MainMenuManager : MonoBehaviour
     [Header("难度面板取消按钮")]
     public Button difficultyCancelButton;
 
-    // 用于记录上一个面板，以便取消返回
-    private GameObject previousPanel = null;
+ 
 
     private string selectedCategory;
     private int selectedImageIndex = -1;
     private string pendingPurchaseCategory;
     private int pendingPurchaseImageIndex;
+    private GameObject currentBasePanel;    // 当前基础面板：categoryScrollView 或 profilePanel
+    private GameObject currentLayer2Panel;  // 当前第二层面板：imageSelectPanel 或 favoritesPanel
+    private GameObject currentLayer3Panel;  // 当前第三层面板：difficultyPanel
+    private GameObject currentLayer4Panel;  // 当前第四层面板：purchasePanel
 
     private Dictionary<Button, Coroutine> previewCoroutines = new Dictionary<Button, Coroutine>();
 
@@ -82,16 +92,25 @@ public class MainMenuManager : MonoBehaviour
         // 底部按钮
         profileButton.onClick.AddListener(() => ShowPanel(profilePanel));
         categoryButton.onClick.AddListener(() => ShowPanel(categoryScrollView));
-        profileBackButton.onClick.AddListener(() => ShowPanel(categoryScrollView));
+//profileBackButton.onClick.AddListener(() => ShowPanel(categoryScrollView));
         favoritesButton.onClick.AddListener(() => ShowPanel(favoritesPanel));
-        favoritesCloseButton.onClick.AddListener(() => ShowPanel(profilePanel));
+        favoritesCloseButton.onClick.AddListener(() => ShowPanel(currentBasePanel ?? profilePanel));
 
         // 姓名确认
         nameConfirmButton.onClick.AddListener(OnNameConfirmed);
 
-        // 难度取消
-        difficultyCancelButton.onClick.AddListener(() => ShowPanel(previousPanel));
+        difficultyCancelButton.onClick.AddListener(() =>
+        {
+            if (currentLayer2Panel != null)
+                ShowPanel(currentLayer2Panel);
+            else
+                ShowPanel(currentBasePanel ?? categoryScrollView);
+        });
+        // 初始化体力系统
+        GameDataManager.InitStaminaSystem();
 
+        // 启动体力更新协程
+        StartCoroutine(UpdateStaminaUI());
         // 初始显示
         if (string.IsNullOrEmpty(GameDataManager.PlayerName))
         {
@@ -114,9 +133,15 @@ public class MainMenuManager : MonoBehaviour
         normalButton.onClick.AddListener(() => StartGame(8));
         hardButton.onClick.AddListener(() => StartGame(10));
 
+        adStaminaButton.onClick.AddListener(OnAdStaminaClicked);
+
         confirmPurchaseButton.onClick.AddListener(ConfirmPurchase);
-        cancelPurchaseButton.onClick.AddListener(() => ShowPanel(null));          // 关闭购买面板，回到分类
-        closeImagePanelButton.onClick.AddListener(() => ShowPanel(null));         // 关闭图片面板，回到分类
+        cancelPurchaseButton.onClick.AddListener(() =>
+        {
+            if (currentLayer2Panel != null) ShowPanel(currentLayer2Panel);
+            else ShowPanel(currentBasePanel ?? categoryScrollView);
+        });
+        closeImagePanelButton.onClick.AddListener(() => ShowPanel(currentBasePanel ?? categoryScrollView));
 
         UpdateCoinDisplay();
         GenerateCategoryButtons();
@@ -130,49 +155,121 @@ public class MainMenuManager : MonoBehaviour
 
     void ShowPanel(GameObject panelToShow)
     {
-        // 先记录当前激活的面板（用于难度取消返回）
-        if (panelToShow == difficultyPanel)
+        // 如果目标为空，仅隐藏所有覆盖面板（保留基础面板）
+        if (panelToShow == null)
         {
-            if (imageSelectPanel.activeSelf) previousPanel = imageSelectPanel;
-            else if (favoritesPanel.activeSelf) previousPanel = favoritesPanel;
-            else previousPanel = categoryScrollView;
+            HideOverlayPanels();
+            return;
         }
 
-        // 隐藏所有面板
-        categoryScrollView.SetActive(false);
-        profilePanel.SetActive(false);
-        favoritesPanel.SetActive(false);
-        imageSelectPanel.SetActive(false);
-        difficultyPanel.SetActive(false);
-        purchasePanel.SetActive(false);
-        nameInputPanel.SetActive(false);
-
-        // 如果 panelToShow 为 null，则只隐藏，不显示任何面板
-        if (panelToShow == null) return;
-
-        // 显示目标面板
-        panelToShow.SetActive(true);
-        panelToShow.transform.SetAsLastSibling();
-
-        // 如果是名字输入面板，额外确保它在最顶部
-        if (panelToShow == nameInputPanel)
+        // 判断面板类型
+        if (panelToShow == categoryScrollView || panelToShow == profilePanel)
         {
+            // 基础面板互斥
+            HideOverlayPanels(); // 隐藏所有覆盖面板
+            categoryScrollView.SetActive(panelToShow == categoryScrollView);
+            profilePanel.SetActive(panelToShow == profilePanel);
+            currentBasePanel = panelToShow;
             panelToShow.transform.SetAsLastSibling();
-            Canvas canvas = panelToShow.GetComponent<Canvas>();
-            if (canvas != null)
-            {
-                canvas.overrideSorting = true;
-                canvas.sortingOrder = 999;
-            }
+        }
+        else if (panelToShow == imageSelectPanel || panelToShow == favoritesPanel)
+        {
+            // 第二层面板
+            HidePanelsAboveLayer2();
+            imageSelectPanel.SetActive(panelToShow == imageSelectPanel);
+            favoritesPanel.SetActive(panelToShow == favoritesPanel);
+            currentLayer2Panel = panelToShow;
+            panelToShow.transform.SetAsLastSibling();
+        }
+        else if (panelToShow == difficultyPanel)
+        {
+            // 第三层面板
+            HidePanelsAboveLayer3();
+            difficultyPanel.SetActive(true);
+            currentLayer3Panel = panelToShow;
+            panelToShow.transform.SetAsLastSibling();
+        }
+        else if (panelToShow == purchasePanel)
+        {
+            // 第四层面板
+            HidePanelsAboveLayer4();
+            purchasePanel.SetActive(true);
+            currentLayer4Panel = panelToShow;
+            panelToShow.transform.SetAsLastSibling();
+        }
+        else if (panelToShow == nameInputPanel)
+        {
+            // 姓名输入面板：隐藏所有其他面板
+            HideAllPanels();
+            nameInputPanel.SetActive(true);
+            nameInputPanel.transform.SetAsLastSibling();
+            Canvas canvas = nameInputPanel.GetComponent<Canvas>();
+            if (canvas != null) { canvas.overrideSorting = true; canvas.sortingOrder = 999; }
         }
 
-        // 更新个人信息UI
+        // 更新个人信息或收藏面板内容
         if (panelToShow == profilePanel) UpdateProfileUI();
         if (panelToShow == favoritesPanel) PopulateFavoritesPanel();
     }
 
+    // 辅助方法
+    void HideOverlayPanels()
+    {
+        imageSelectPanel.SetActive(false);
+        favoritesPanel.SetActive(false);
+        difficultyPanel.SetActive(false);
+        purchasePanel.SetActive(false);
+        nameInputPanel.SetActive(false);
+        currentLayer2Panel = null;
+        currentLayer3Panel = null;
+        currentLayer4Panel = null;
+    }
+
+    void HidePanelsAboveLayer2()
+    {
+        difficultyPanel.SetActive(false);
+        purchasePanel.SetActive(false);
+        nameInputPanel.SetActive(false);
+        currentLayer3Panel = null;
+        currentLayer4Panel = null;
+    }
+
+    void HidePanelsAboveLayer3()
+    {
+        purchasePanel.SetActive(false);
+        nameInputPanel.SetActive(false);
+        currentLayer4Panel = null;
+    }
+
+    void HidePanelsAboveLayer4()
+    {
+        nameInputPanel.SetActive(false);
+    }
+
+    void HideAllPanels()
+    {
+        categoryScrollView.SetActive(false);
+        profilePanel.SetActive(false);
+        imageSelectPanel.SetActive(false);
+        favoritesPanel.SetActive(false);
+        difficultyPanel.SetActive(false);
+        purchasePanel.SetActive(false);
+        nameInputPanel.SetActive(false);
+        currentBasePanel = null;
+        currentLayer2Panel = null;
+        currentLayer3Panel = null;
+        currentLayer4Panel = null;
+    }
+
     void GenerateCategoryButtons()
     {
+        // 停止所有旧协程
+        foreach (var kvp in previewCoroutines)
+        {
+            if (kvp.Value != null)
+                StopCoroutine(kvp.Value);
+        }
+        previewCoroutines.Clear();
         foreach (Transform child in categoryScrollContent)
         {
             Destroy(child.gameObject);
@@ -214,43 +311,73 @@ public class MainMenuManager : MonoBehaviour
             }
         }
     }
+    IEnumerator UpdateStaminaUI()
+    {
+        while (true)
+        {
+            UpdateStaminaDisplay();
+            yield return new WaitForSeconds(1f); // 每秒刷新一次
+        }
+    }
 
+    void UpdateStaminaDisplay()
+    {
+        if (staminaText != null)
+        {
+            staminaText.text = $"体力：{GameDataManager.Stamina}/{GameDataManager.MaxStamina}";
+        }
+        if (staminaSlider != null)
+        {
+            staminaSlider.maxValue = GameDataManager.MaxStamina;
+            staminaSlider.value = GameDataManager.Stamina;
+            staminaSlider.interactable = false;
+        }
+    }
     IEnumerator UpdateCategoryPreview(Image previewImage, string category)
     {
+        if (previewImage == null) yield break;
         Sprite[] sprites = Resources.LoadAll<Sprite>("Art/" + category);
         if (sprites.Length == 0) yield break;
 
-        while (true)
+        while (previewImage != null)   // 当 previewImage 不为空时循环
         {
             Sprite newSprite = sprites[Random.Range(0, sprites.Length)];
             yield return StartCoroutine(FadeToSprite(previewImage, newSprite));
+            if (previewImage == null) yield break;    // 如果协程中图片被销毁，退出
             yield return new WaitForSeconds(previewChangeInterval);
         }
     }
 
     IEnumerator FadeToSprite(Image image, Sprite newSprite)
     {
+        if (image == null) yield break;
+
         float elapsed = 0f;
         Color startColor = image.color;
         Color transparentColor = new Color(startColor.r, startColor.g, startColor.b, 0f);
 
+        // 淡出阶段
         while (elapsed < fadeDuration)
         {
+            if (image == null) yield break;   // 每帧检查图片是否被销毁
             elapsed += Time.deltaTime;
             image.color = Color.Lerp(startColor, transparentColor, elapsed / fadeDuration);
             yield return null;
         }
 
+        if (image == null) yield break;       // 更换图片前检查
         image.sprite = newSprite;
 
+        // 淡入阶段
         elapsed = 0f;
         while (elapsed < fadeDuration)
         {
+            if (image == null) yield break;   // 每帧检查
             elapsed += Time.deltaTime;
             image.color = Color.Lerp(transparentColor, startColor, elapsed / fadeDuration);
             yield return null;
         }
-        image.color = startColor;
+        if (image != null) image.color = startColor;   // 最终颜色
     }
 
     void OnCategoryClicked(int index)
@@ -271,7 +398,37 @@ public class MainMenuManager : MonoBehaviour
             ShowPanel(purchasePanel);         // 显示购买面板
         }
     }
+    void OnAdStaminaClicked()
+    {
+        // 禁用按钮，防止重复点击（可选）
+        adStaminaButton.interactable = false;
 
+        // 调用广告（这里用模拟方法，实际接入时替换为真实广告SDK）
+        ShowRewardedAd(() =>
+        {
+            // 广告观看成功：奖励4体力+2金币
+            GameDataManager.AddStamina(4);
+            GameDataManager.AddCoins(2);
+            UpdateStaminaDisplay();
+            UpdateCoinDisplay();
+
+            Debug.Log("观看广告成功，获得4体力、2金币");
+            adStaminaButton.interactable = true; // 恢复按钮
+        }, () =>
+        {
+            // 广告观看失败或取消
+            Debug.Log("广告未完成，无奖励");
+            adStaminaButton.interactable = true;
+        });
+    }
+
+    // 模拟广告方法（实际项目请替换为真实广告代码）
+    void ShowRewardedAd(System.Action onSuccess, System.Action onFail)
+    {
+        // 这里简单直接调用成功回调，模拟广告观看完成
+        // 替换为：UnityAds.ShowRewardedAd(onSuccess, onFail) 等
+        onSuccess?.Invoke();
+    }
     void OpenImageSelectPanel(string category)
     {
         foreach (Transform child in imageScrollContent)
@@ -369,8 +526,8 @@ public class MainMenuManager : MonoBehaviour
                 // 购买分类成功
                 GameDataManager.UnlockCategory(pendingPurchaseCategory);
                 UpdateCoinDisplay();
-                GenerateCategoryButtons();
-                ShowPanel(null);   // 隐藏所有弹出面板，露出分类
+                //GenerateCategoryButtons();
+                ShowPanel(categoryScrollView);   // 显示分类滚动视图
                 Debug.Log($"解锁分类 {pendingPurchaseCategory} 成功！");
             }
             else
