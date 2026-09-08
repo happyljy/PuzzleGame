@@ -1,104 +1,144 @@
-using UnityEngine;
-using UnityEngine.UI;
-using UnityEngine.SceneManagement;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+using System.Text.RegularExpressions;
 
+/// <summary>
+/// 主菜单管理器：负责主菜单所有 UI 面板的切换、分类按钮生成、图片选择、
+/// 个人信息、收藏、每日拼图、看广告恢复体力、购买等功能。
+/// </summary>
 public class MainMenuManager : MonoBehaviour
 {
+    // ==================== UI 引用 ====================
+
+    [Header("每日拼图")]
+    public Button dailyPuzzleButton;                // 每日拼图入口按钮
+
+    [Header("加载面板")]
+    public GameObject loadingPanel;   // 加载面板物体
+    public Text loadingText;          // 加载提示文字
+
+    [Header("加载进度条")]
+    public Slider loadingSlider;
+
+    [Header("通用确认弹窗")]
+    public GameObject confirmPanel;                 // 确认弹窗面板
+    public Text confirmText;                        // 弹窗提示文字
+    public Button confirmYesButton;                 // 确定按钮
+    public Button confirmNoButton;                  // 取消按钮
+    private System.Action confirmAction;            // 确定按钮的回调
+
     [Header("广告恢复")]
-    public Button adStaminaButton;   // 看广告恢复体力按钮
+    public Button adStaminaButton;                  // 看广告恢复体力按钮
 
     [Header("体力显示")]
-    public Text staminaText;         // 显示体力/上限
-    public Slider staminaSlider;     // 可选，体力条
+    public Text staminaText;                        // 体力数值文本
+    public Slider staminaSlider;                    // 体力条
 
     [Header("分类 ScrollView")]
-    public GameObject categoryScrollView;             // 分类 ScrollView 物体（整个 ScrollView）
-    public RectTransform categoryScrollContent;      // 分类按钮的父物体（Content）
-    public GameObject categoryButtonPrefab;          // 分类按钮预制体
+    public GameObject categoryScrollView;           // 分类滚动视图（整个物体）
+    public RectTransform categoryScrollContent;     // 分类按钮的父物体
+    public GameObject categoryButtonPrefab;         // 分类按钮预制体
 
     [Header("分类预览设置")]
-    public float previewChangeInterval = 3f;
-    public float fadeDuration = 0.5f;
+    public float previewChangeInterval = 3f;        // 预览图切换间隔（秒）
+    public float fadeDuration = 0.5f;               // 渐变时长
 
     [Header("图片选择面板")]
-    public GameObject imageSelectPanel;
-    public Button closeImagePanelButton;
-    public RectTransform imageScrollContent;
-    public GameObject imageButtonPrefab;
+    public GameObject imageSelectPanel;             // 图片选择面板
+    public Button closeImagePanelButton;            // 关闭图片面板按钮
+    public RectTransform imageScrollContent;        // 图片按钮的父物体
+    public GameObject imageButtonPrefab;            // 图片按钮预制体
 
     [Header("难度面板")]
-    public GameObject difficultyPanel;
-    public Button easyButton;
-    public Button normalButton;
-    public Button hardButton;
+    public GameObject difficultyPanel;              // 难度选择面板
+    public Button easyButton;                       // 简单难度按钮
+    public Button normalButton;                     // 普通难度按钮
+    public Button hardButton;                       // 困难难度按钮
 
     [Header("购买面板")]
-    public GameObject purchasePanel;
-    public Text purchaseText;
-    public Button confirmPurchaseButton;
-    public Button cancelPurchaseButton;
+    public GameObject purchasePanel;                // 购买面板
+    public Text purchaseText;                       // 购买提示文字
+    public Button confirmPurchaseButton;            // 确认购买按钮
+    public Button cancelPurchaseButton;             // 取消购买按钮
 
     [Header("金币显示")]
-    public Text coinText;
+    public Text coinText;                           // 金币数量文本
 
     [Header("个人信息")]
-    public GameObject profilePanel;
-    public Text profileNameText;
-    public Text profileLevelText;
-    public Slider experienceSlider;
-    public Button favoritesButton;
-   // public Button profileBackButton;
+    public GameObject profilePanel;                 // 个人信息面板
+    public Text profileNameText;                    // 玩家名字
+    public Text profileLevelText;                   // 等级和经验文本
+    public Slider experienceSlider;                 // 经验条
+    public Button favoritesButton;                  // 我的收藏按钮
 
     [Header("姓名输入面板")]
-    public GameObject nameInputPanel;
-    public InputField nameInputField;
-    public Button nameConfirmButton;
+    public GameObject nameInputPanel;               // 姓名输入面板
+    public InputField nameInputField;               // 姓名输入框
+    public Button nameConfirmButton;                // 确认名字按钮
 
     [Header("我的收藏面板")]
-    public GameObject favoritesPanel;
-    public RectTransform favoritesScrollContent;
-    public Button favoritesCloseButton;
+    public GameObject favoritesPanel;               // 收藏面板
+    public RectTransform favoritesScrollContent;    // 收藏图片的父物体
+    public Button favoritesCloseButton;             // 关闭收藏面板按钮
 
     [Header("底部按钮")]
-    public Button profileButton;      // 个人信息按钮
-    public Button categoryButton;     // CategoryScrollView按钮
+    public Button profileButton;                    // 个人信息底部按钮
+    public Button categoryButton;                   // 分类底部按钮
 
     [Header("难度面板取消按钮")]
-    public Button difficultyCancelButton;
+    public Button difficultyCancelButton;           // 难度面板取消按钮
 
- 
+    // ==================== 私有状态 ====================
 
-    private string selectedCategory;
-    private int selectedImageIndex = -1;
-    private string pendingPurchaseCategory;
-    private int pendingPurchaseImageIndex;
-    private GameObject currentBasePanel;    // 当前基础面板：categoryScrollView 或 profilePanel
-    private GameObject currentLayer2Panel;  // 当前第二层面板：imageSelectPanel 或 favoritesPanel
-    private GameObject currentLayer3Panel;  // 当前第三层面板：difficultyPanel
-    private GameObject currentLayer4Panel;  // 当前第四层面板：purchasePanel
+    private bool isFlashing = false;                // 金币文本是否正在闪烁
+    private string selectedCategory;                // 当前选中的分类
+    private int selectedImageIndex = -1;            // 当前选中的图片索引（-1为随机）
+    private string pendingPurchaseCategory;         // 待购买的分类
+    private int pendingPurchaseImageIndex;          // 待购买的图片索引
 
+    // 面板层级管理
+    private GameObject currentBasePanel;            // 当前基础面板（categoryScrollView 或 profilePanel）
+    private GameObject currentLayer2Panel;          // 当前第二层面板（imageSelectPanel 或 favoritesPanel）
+    private GameObject currentLayer3Panel;          // 当前第三层面板（difficultyPanel）
+    private GameObject currentLayer4Panel;          // 当前第四层面板（purchasePanel）
+
+    // 保存每个分类按钮上的预览协程，用于停止和清理
     private Dictionary<Button, Coroutine> previewCoroutines = new Dictionary<Button, Coroutine>();
 
     void Awake()
     {
-        // 测试用：编辑器下重置数据（可选）
+        // 测试时可启用此行清空数据，正式版请注释掉
         // GameDataManager.ResetForEditor();
     }
-    
+
     void Start()
     {
-        // 底部按钮
+        // 绑定每日拼图按钮
+        dailyPuzzleButton.onClick.AddListener(OnDailyPuzzleClicked);
+
+        //加载页面初始隐藏
+        loadingPanel.SetActive(false);
+
+        // 绑定确认弹窗按钮
+        confirmYesButton.onClick.AddListener(OnConfirmYes);
+        confirmNoButton.onClick.AddListener(() => confirmPanel.SetActive(false));
+        confirmPanel.SetActive(false);
+
+        // 绑定底部基础面板切换按钮
         profileButton.onClick.AddListener(() => ShowPanel(profilePanel));
         categoryButton.onClick.AddListener(() => ShowPanel(categoryScrollView));
-//profileBackButton.onClick.AddListener(() => ShowPanel(categoryScrollView));
+
+        // 收藏面板相关
         favoritesButton.onClick.AddListener(() => ShowPanel(favoritesPanel));
         favoritesCloseButton.onClick.AddListener(() => ShowPanel(currentBasePanel ?? profilePanel));
 
-        // 姓名确认
+        // 姓名确认按钮
         nameConfirmButton.onClick.AddListener(OnNameConfirmed);
 
+        // 难度面板取消按钮
         difficultyCancelButton.onClick.AddListener(() =>
         {
             if (currentLayer2Panel != null)
@@ -106,67 +146,71 @@ public class MainMenuManager : MonoBehaviour
             else
                 ShowPanel(currentBasePanel ?? categoryScrollView);
         });
-        // 初始化体力系统
+
+        // 初始化体力系统（第一次运行设置满体力）
         GameDataManager.InitStaminaSystem();
 
-        // 启动体力更新协程
+        // 启动体力 UI 更新协程
         StartCoroutine(UpdateStaminaUI());
-        // 初始显示
-        if (string.IsNullOrEmpty(GameDataManager.PlayerName))
-        {
-            ShowPanel(nameInputPanel);
-        }
-        else
-        {
-            ShowPanel(categoryScrollView);
-        }
-        //// 确保 CategoryScrollView 位于最底层，其他面板隐藏
-        //categoryScrollView.SetActive(true);
-        ////categoryScrollView.transform.SetAsFirstSibling();
-        //categoryScrollView.transform.SetAsLastSibling(); // 将 CategoryScrollView 移到最上层
-        //imageSelectPanel.SetActive(false);
-        //difficultyPanel.SetActive(false);
-        //purchasePanel.SetActive(false);
 
-        // 按钮事件
+        // 根据是否已设置名字决定初始面板
+        if (string.IsNullOrEmpty(GameDataManager.PlayerName))
+            ShowPanel(nameInputPanel);
+        else
+            ShowPanel(categoryScrollView);
+
+        // 难度按钮绑定（测试时简单难度用 2x2，正式改为 6）
         easyButton.onClick.AddListener(() => StartGame(2));
         normalButton.onClick.AddListener(() => StartGame(8));
         hardButton.onClick.AddListener(() => StartGame(10));
 
+        // 看广告恢复体力按钮
         adStaminaButton.onClick.AddListener(OnAdStaminaClicked);
 
+        // 购买面板按钮
         confirmPurchaseButton.onClick.AddListener(ConfirmPurchase);
         cancelPurchaseButton.onClick.AddListener(() =>
         {
             if (currentLayer2Panel != null) ShowPanel(currentLayer2Panel);
             else ShowPanel(currentBasePanel ?? categoryScrollView);
         });
+
+        // 关闭图片选择面板按钮
         closeImagePanelButton.onClick.AddListener(() => ShowPanel(currentBasePanel ?? categoryScrollView));
 
+        // 更新金币显示并生成分类按钮
         UpdateCoinDisplay();
         GenerateCategoryButtons();
     }
 
     void OnEnable()
     {
+        // 每次激活时刷新金币和个人信息
         UpdateCoinDisplay();
-        UpdateProfileUI();   // 添加这一行，确保数据刷新
+        UpdateProfileUI();
     }
 
+    /// <summary>
+    /// 根据目标面板类型显示对应面板，并管理面板之间的层级关系
+    /// </summary>
     void ShowPanel(GameObject panelToShow)
     {
-        // 如果目标为空，仅隐藏所有覆盖面板（保留基础面板）
+        // 如果目标为空，只隐藏所有覆盖面板
         if (panelToShow == null)
         {
             HideOverlayPanels();
+            confirmPanel.SetActive(false);
             return;
         }
+
+        // 无论显示哪个面板，先隐藏确认弹窗
+        confirmPanel.SetActive(false);
 
         // 判断面板类型
         if (panelToShow == categoryScrollView || panelToShow == profilePanel)
         {
             // 基础面板互斥
-            HideOverlayPanels(); // 隐藏所有覆盖面板
+            HideOverlayPanels();
             categoryScrollView.SetActive(panelToShow == categoryScrollView);
             profilePanel.SetActive(panelToShow == profilePanel);
             currentBasePanel = panelToShow;
@@ -204,7 +248,11 @@ public class MainMenuManager : MonoBehaviour
             nameInputPanel.SetActive(true);
             nameInputPanel.transform.SetAsLastSibling();
             Canvas canvas = nameInputPanel.GetComponent<Canvas>();
-            if (canvas != null) { canvas.overrideSorting = true; canvas.sortingOrder = 999; }
+            if (canvas != null)
+            {
+                canvas.overrideSorting = true;
+                canvas.sortingOrder = 999;
+            }
         }
 
         // 更新个人信息或收藏面板内容
@@ -212,7 +260,8 @@ public class MainMenuManager : MonoBehaviour
         if (panelToShow == favoritesPanel) PopulateFavoritesPanel();
     }
 
-    // 辅助方法
+    // ==================== 面板隐藏辅助方法 ====================
+
     void HideOverlayPanels()
     {
         imageSelectPanel.SetActive(false);
@@ -261,32 +310,38 @@ public class MainMenuManager : MonoBehaviour
         currentLayer4Panel = null;
     }
 
+    // ==================== 分类按钮生成与预览 ====================
+
+    /// <summary>
+    /// 生成所有分类按钮，并启动预览图协程
+    /// </summary>
     void GenerateCategoryButtons()
     {
-        // 停止所有旧协程
+        // 停止所有旧的预览协程
         foreach (var kvp in previewCoroutines)
         {
             if (kvp.Value != null)
                 StopCoroutine(kvp.Value);
         }
         previewCoroutines.Clear();
+
+        // 清空旧按钮
         foreach (Transform child in categoryScrollContent)
         {
             Destroy(child.gameObject);
         }
-        previewCoroutines.Clear();
 
+        // 设置 GridLayoutGroup 参数
         GridLayoutGroup grid = categoryScrollContent.GetComponent<GridLayoutGroup>();
         if (grid == null)
-        {
             grid = categoryScrollContent.gameObject.AddComponent<GridLayoutGroup>();
-        }
         grid.cellSize = new Vector2(350, 350);
         grid.spacing = new Vector2(50, 50);
         grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-        grid.constraintCount = 2;
+        grid.constraintCount = 2;  // 两列
         grid.childAlignment = TextAnchor.UpperCenter;
 
+        // 遍历所有分类
         for (int i = 0; i < GameDataManager.Categories.Length; i++)
         {
             string category = GameDataManager.Categories[i];
@@ -295,15 +350,16 @@ public class MainMenuManager : MonoBehaviour
             Text label = btnObj.GetComponentInChildren<Text>();
             Image previewImage = btnObj.transform.Find("PreviewImage")?.GetComponent<Image>();
 
+            // 设置按钮文本（分类名，所有分类已免费，不显示价格）
             bool unlocked = GameDataManager.IsCategoryUnlocked(category);
             if (label != null)
-            {
                 label.text = unlocked ? category : $"{category}\n{GameDataManager.CategoryPrices[i]}金币";
-            }
 
+            // 绑定点击事件
             int index = i;
             btn.onClick.AddListener(() => OnCategoryClicked(index));
 
+            // 启动预览图渐变协程
             if (previewImage != null)
             {
                 Coroutine coroutine = StartCoroutine(UpdateCategoryPreview(previewImage, category));
@@ -311,21 +367,23 @@ public class MainMenuManager : MonoBehaviour
             }
         }
     }
+
+    /// <summary>
+    /// 体力 UI 更新协程，每秒刷新一次
+    /// </summary>
     IEnumerator UpdateStaminaUI()
     {
         while (true)
         {
             UpdateStaminaDisplay();
-            yield return new WaitForSeconds(1f); // 每秒刷新一次
+            yield return new WaitForSeconds(1f);
         }
     }
 
     void UpdateStaminaDisplay()
     {
         if (staminaText != null)
-        {
             staminaText.text = $"体力：{GameDataManager.Stamina}/{GameDataManager.MaxStamina}";
-        }
         if (staminaSlider != null)
         {
             staminaSlider.maxValue = GameDataManager.MaxStamina;
@@ -333,21 +391,28 @@ public class MainMenuManager : MonoBehaviour
             staminaSlider.interactable = false;
         }
     }
+
+    /// <summary>
+    /// 单个分类按钮的预览图渐变切换
+    /// </summary>
     IEnumerator UpdateCategoryPreview(Image previewImage, string category)
     {
         if (previewImage == null) yield break;
         Sprite[] sprites = Resources.LoadAll<Sprite>("Art/" + category);
         if (sprites.Length == 0) yield break;
 
-        while (previewImage != null)   // 当 previewImage 不为空时循环
+        while (previewImage != null)
         {
             Sprite newSprite = sprites[Random.Range(0, sprites.Length)];
             yield return StartCoroutine(FadeToSprite(previewImage, newSprite));
-            if (previewImage == null) yield break;    // 如果协程中图片被销毁，退出
+            if (previewImage == null) yield break;
             yield return new WaitForSeconds(previewChangeInterval);
         }
     }
 
+    /// <summary>
+    /// 图片渐变切换协程（淡出-换图-淡入）
+    /// </summary>
     IEnumerator FadeToSprite(Image image, Sprite newSprite)
     {
         if (image == null) yield break;
@@ -356,91 +421,56 @@ public class MainMenuManager : MonoBehaviour
         Color startColor = image.color;
         Color transparentColor = new Color(startColor.r, startColor.g, startColor.b, 0f);
 
-        // 淡出阶段
+        // 淡出
         while (elapsed < fadeDuration)
         {
-            if (image == null) yield break;   // 每帧检查图片是否被销毁
+            if (image == null) yield break;
             elapsed += Time.deltaTime;
             image.color = Color.Lerp(startColor, transparentColor, elapsed / fadeDuration);
             yield return null;
         }
 
-        if (image == null) yield break;       // 更换图片前检查
+        if (image == null) yield break;
         image.sprite = newSprite;
 
-        // 淡入阶段
+        // 淡入
         elapsed = 0f;
         while (elapsed < fadeDuration)
         {
-            if (image == null) yield break;   // 每帧检查
+            if (image == null) yield break;
             elapsed += Time.deltaTime;
             image.color = Color.Lerp(transparentColor, startColor, elapsed / fadeDuration);
             yield return null;
         }
-        if (image != null) image.color = startColor;   // 最终颜色
+        if (image != null) image.color = startColor;
     }
 
+    // ==================== 分类点击与图片选择 ====================
+
+    /// <summary>
+    /// 分类按钮点击：直接打开图片选择面板（所有分类免费）
+    /// </summary>
     void OnCategoryClicked(int index)
     {
         string category = GameDataManager.Categories[index];
-        if (GameDataManager.IsCategoryUnlocked(category))
-        {
-            selectedCategory = category;
-            OpenImageSelectPanel(category);
-            ShowPanel(imageSelectPanel);      // 显示图片面板，关闭其他
-        }
-        else
-        {
-            selectedCategory = category;
-            pendingPurchaseCategory = category;
-            pendingPurchaseImageIndex = -1;
-            purchaseText.text = $"是否花费 {GameDataManager.CategoryPrices[index]} 金币解锁 {category} 分类？";
-            ShowPanel(purchasePanel);         // 显示购买面板
-        }
-    }
-    void OnAdStaminaClicked()
-    {
-        // 禁用按钮，防止重复点击（可选）
-        adStaminaButton.interactable = false;
-
-        // 调用广告（这里用模拟方法，实际接入时替换为真实广告SDK）
-        ShowRewardedAd(() =>
-        {
-            // 广告观看成功：奖励4体力+2金币
-            GameDataManager.AddStamina(4);
-            GameDataManager.AddCoins(2);
-            UpdateStaminaDisplay();
-            UpdateCoinDisplay();
-
-            Debug.Log("观看广告成功，获得4体力、2金币");
-            adStaminaButton.interactable = true; // 恢复按钮
-        }, () =>
-        {
-            // 广告观看失败或取消
-            Debug.Log("广告未完成，无奖励");
-            adStaminaButton.interactable = true;
-        });
+        selectedCategory = category;
+        OpenImageSelectPanel(category);
+        ShowPanel(imageSelectPanel);
     }
 
-    // 模拟广告方法（实际项目请替换为真实广告代码）
-    void ShowRewardedAd(System.Action onSuccess, System.Action onFail)
-    {
-        // 这里简单直接调用成功回调，模拟广告观看完成
-        // 替换为：UnityAds.ShowRewardedAd(onSuccess, onFail) 等
-        onSuccess?.Invoke();
-    }
+    /// <summary>
+    /// 填充图片选择面板（包含随机按钮和分类下所有图片）
+    /// </summary>
     void OpenImageSelectPanel(string category)
     {
+        // 清空旧按钮
         foreach (Transform child in imageScrollContent)
-        {
             Destroy(child.gameObject);
-        }
 
+        // 设置 Grid
         GridLayoutGroup grid = imageScrollContent.GetComponent<GridLayoutGroup>();
         if (grid == null)
-        {
             grid = imageScrollContent.gameObject.AddComponent<GridLayoutGroup>();
-        }
         grid.cellSize = new Vector2(350, 350);
         grid.spacing = new Vector2(50, 50);
         grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
@@ -460,7 +490,7 @@ public class MainMenuManager : MonoBehaviour
         }
         randomBtn.onClick.AddListener(() => OnImageClicked(-1));
 
-        // 图片按钮
+        // 加载分类下所有图片
         Sprite[] sprites = Resources.LoadAll<Sprite>("Art/" + category);
         System.Array.Sort(sprites, (a, b) => string.Compare(a.name, b.name));
 
@@ -478,21 +508,22 @@ public class MainMenuManager : MonoBehaviour
                 img.color = unlocked ? Color.white : new Color(0.5f, 0.5f, 0.5f, 0.7f);
             }
             if (label != null)
-            {
                 label.text = GameDataManager.IsImageUnlocked(category, i) ? "" : $"{GameDataManager.GetImagePrice(category, i)}金币";
-            }
 
             int imageIndex = i;
             imgBtn.onClick.AddListener(() => OnImageClicked(imageIndex));
         }
     }
 
+    /// <summary>
+    /// 图片点击：解锁则进入难度选择，未解锁则弹出购买
+    /// </summary>
     void OnImageClicked(int imageIndex)
     {
-        if (imageIndex == -1)
+        if (imageIndex == -1) // 随机
         {
             selectedImageIndex = -1;
-            ShowPanel(difficultyPanel);       // 显示难度面板
+            ShowPanel(difficultyPanel);
         }
         else
         {
@@ -513,8 +544,11 @@ public class MainMenuManager : MonoBehaviour
         }
     }
 
+    // ==================== 购买逻辑 ====================
+
     void ConfirmPurchase()
     {
+        // 如果 pendingPurchaseImageIndex == -1，表示购买分类（但当前所有分类免费，此分支基本不会触发）
         if (pendingPurchaseImageIndex == -1)
         {
             int price = GameDataManager.CategoryPrices[System.Array.IndexOf(GameDataManager.Categories, pendingPurchaseCategory)];
@@ -523,11 +557,7 @@ public class MainMenuManager : MonoBehaviour
                 GameDataManager.UnlockCategory(pendingPurchaseCategory);
                 UpdateCoinDisplay();
                 GenerateCategoryButtons();
-                // 购买分类成功
-                GameDataManager.UnlockCategory(pendingPurchaseCategory);
-                UpdateCoinDisplay();
-                //GenerateCategoryButtons();
-                ShowPanel(categoryScrollView);   // 显示分类滚动视图
+                ShowPanel(categoryScrollView);
                 Debug.Log($"解锁分类 {pendingPurchaseCategory} 成功！");
             }
             else
@@ -538,13 +568,14 @@ public class MainMenuManager : MonoBehaviour
         }
         else
         {
+            // 购买图片
             int price = GameDataManager.GetImagePrice(pendingPurchaseCategory, pendingPurchaseImageIndex);
             if (GameDataManager.SpendCoins(price))
             {
                 GameDataManager.UnlockImage(pendingPurchaseCategory, pendingPurchaseImageIndex);
                 UpdateCoinDisplay();
                 OpenImageSelectPanel(pendingPurchaseCategory);
-                ShowPanel(imageSelectPanel);     // 刷新图片面板并显示
+                ShowPanel(imageSelectPanel);
                 Debug.Log($"解锁图片 {pendingPurchaseCategory}_{pendingPurchaseImageIndex} 成功！");
             }
             else
@@ -555,9 +586,13 @@ public class MainMenuManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 金币不足时文本闪烁红色两下
+    /// </summary>
     IEnumerator FlashCoinTextRed()
     {
-        if (coinText == null) yield break;
+        if (coinText == null || isFlashing) yield break;
+        isFlashing = true;
         Color originalColor = coinText.color;
         coinText.color = Color.red;
         yield return new WaitForSeconds(0.2f);
@@ -566,16 +601,92 @@ public class MainMenuManager : MonoBehaviour
         coinText.color = Color.red;
         yield return new WaitForSeconds(0.2f);
         coinText.color = originalColor;
+        isFlashing = false;
     }
+
+    // ==================== 其他按钮事件 ====================
+
+    void OnAdStaminaClicked()
+    {
+        adStaminaButton.interactable = false;
+        ShowRewardedAd(() =>
+        {
+            GameDataManager.AddStamina(4);
+            GameDataManager.AddCoins(2);
+            UpdateStaminaDisplay();
+            UpdateCoinDisplay();
+            Debug.Log("观看广告成功，获得4体力、2金币");
+            adStaminaButton.interactable = true;
+        }, () =>
+        {
+            Debug.Log("广告未完成，无奖励");
+            adStaminaButton.interactable = true;
+        });
+    }
+
+    // 模拟广告方法，实际项目替换为真实广告 SDK
+    void ShowRewardedAd(System.Action onSuccess, System.Action onFail)
+    {
+        onSuccess?.Invoke();
+    }
+
+    void OnDailyPuzzleClicked()
+    {
+        if (GameDataManager.IsDailyPuzzleCompletedToday())
+        {
+            ShowConfirm("今日每日拼图已完成，明天再来吧！", null);
+            return;
+        }
+
+        if (!GameDataManager.IsDailyPuzzleGeneratedToday())
+            GameDataManager.GenerateDailyPuzzle();
+
+        PlayerPrefs.SetInt("IsDailyPuzzle", 1);
+        PlayerPrefs.Save();
+        SceneManager.LoadScene("GameScene");
+    }
+
+    void ShowConfirm(string message, System.Action onConfirm)
+    {
+        confirmText.text = message;
+        confirmAction = onConfirm;
+        confirmPanel.SetActive(true);
+
+        confirmPanel.transform.SetAsLastSibling();
+
+        Canvas confirmCanvas = confirmPanel.GetComponent<Canvas>();
+        if (confirmCanvas == null)
+        {
+            confirmCanvas = confirmPanel.AddComponent<Canvas>();
+            confirmPanel.AddComponent<GraphicRaycaster>();
+        }
+        confirmCanvas.overrideSorting = true;
+        confirmCanvas.sortingOrder = 1000;
+    }
+
+    void OnConfirmYes()
+    {
+        confirmPanel.SetActive(false);
+        confirmAction?.Invoke();
+    }
+
+    // ==================== 游戏启动与个人信息 ====================
 
     void StartGame(int gridSize)
     {
+        // 保存难度选择参数
         PlayerPrefs.SetString("SelectedCategory", selectedCategory);
         PlayerPrefs.SetInt("Difficulty", gridSize);
         PlayerPrefs.SetInt("SelectedImageIndex", selectedImageIndex);
         PlayerPrefs.Save();
 
-        SceneManager.LoadScene("GameScene");
+        // 显示加载面板并置顶
+        loadingPanel.SetActive(true);
+        loadingPanel.transform.SetAsLastSibling(); // 确保在 Canvas 最上层
+        if (loadingText != null) loadingText.text = "加载中...";
+
+        // 启动异步加载
+        StartCoroutine(LoadGameAsync());
     }
 
     void UpdateCoinDisplay()
@@ -583,24 +694,32 @@ public class MainMenuManager : MonoBehaviour
         if (coinText != null)
             coinText.text = "金币：" + GameDataManager.Coins;
     }
+
     void OnNameConfirmed()
     {
         string name = nameInputField.text.Trim();
-        if (!string.IsNullOrEmpty(name))
+        if (string.IsNullOrEmpty(name))
         {
-            GameDataManager.PlayerName = name;
-            ShowPanel(categoryScrollView);
+            ShowConfirm("名字不能为空", null);
+            return;
         }
-    }
-    void UpdateProfileUI()
-    {
-        Debug.Log("更新个人信息 UI");
-        if (profileNameText != null) profileNameText.text = GameDataManager.PlayerName;
-        if (profileLevelText != null)
+        if (!Regex.IsMatch(name, "^[a-zA-Z0-9]+$"))
         {
-            profileLevelText.text = $"等级 {GameDataManager.Level}  {GameDataManager.Experience}/{GameDataManager.GetRequiredExperience(GameDataManager.Level)}";
+            ShowConfirm("名字只能包含字母和数字", null);
+            nameInputField.text = "";
+            return;
         }
 
+        confirmPanel.SetActive(false);
+        GameDataManager.PlayerName = name;
+        ShowPanel(categoryScrollView);
+    }
+
+    void UpdateProfileUI()
+    {
+        if (profileNameText != null) profileNameText.text = GameDataManager.PlayerName;
+        if (profileLevelText != null)
+            profileLevelText.text = $"等级 {GameDataManager.Level}  {GameDataManager.Experience}/{GameDataManager.GetRequiredExperience(GameDataManager.Level)}";
         if (experienceSlider != null)
         {
             experienceSlider.maxValue = GameDataManager.GetRequiredExperience(GameDataManager.Level);
@@ -608,18 +727,22 @@ public class MainMenuManager : MonoBehaviour
             experienceSlider.interactable = false;
         }
     }
+
+    // ==================== 收藏面板 ====================
+
     void PopulateFavoritesPanel()
     {
-        // 清空
-        foreach (Transform child in favoritesScrollContent) Destroy(child.gameObject);
+        foreach (Transform child in favoritesScrollContent)
+            Destroy(child.gameObject);
 
-        // 设置Grid
         GridLayoutGroup grid = favoritesScrollContent.GetComponent<GridLayoutGroup>();
-        if (grid == null) grid = favoritesScrollContent.gameObject.AddComponent<GridLayoutGroup>();
+        if (grid == null)
+            grid = favoritesScrollContent.gameObject.AddComponent<GridLayoutGroup>();
         grid.cellSize = new Vector2(150, 150);
         grid.spacing = new Vector2(10, 10);
         grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
         grid.constraintCount = 3;
+        grid.childAlignment = TextAnchor.UpperCenter;
 
         List<string> favorites = GameDataManager.GetFavorites();
         foreach (string fav in favorites)
@@ -630,7 +753,6 @@ public class MainMenuManager : MonoBehaviour
             int imageIndex;
             if (!int.TryParse(parts[1], out imageIndex)) continue;
 
-            // 加载对应图片
             Sprite[] sprites = Resources.LoadAll<Sprite>("Art/" + category);
             System.Array.Sort(sprites, (a, b) => string.Compare(a.name, b.name));
             if (imageIndex < 0 || imageIndex >= sprites.Length) continue;
@@ -638,14 +760,74 @@ public class MainMenuManager : MonoBehaviour
             GameObject btnObj = Instantiate(imageButtonPrefab, favoritesScrollContent);
             Button btn = btnObj.GetComponent<Button>();
             Image img = btnObj.transform.Find("Image")?.GetComponent<Image>();
-            if (img != null) img.sprite = sprites[imageIndex];
+            Text label = btnObj.GetComponentInChildren<Text>();
 
-            string cat = category; int idx = imageIndex;
-            btn.onClick.AddListener(() => {
-                selectedCategory = cat;
-                selectedImageIndex = idx;
-                ShowPanel(difficultyPanel);
+            bool unlocked = GameDataManager.IsImageUnlocked(category, imageIndex);
+
+            if (img != null)
+            {
+                img.sprite = sprites[imageIndex];
+                img.color = unlocked ? Color.white : new Color(0.5f, 0.5f, 0.5f, 0.7f);
+            }
+            if (label != null)
+                label.text = unlocked ? "" : $"{GameDataManager.GetImagePrice(category, imageIndex)}金币";
+
+            string cat = category;
+            int idx = imageIndex;
+            btn.onClick.AddListener(() =>
+            {
+                if (GameDataManager.IsImageUnlocked(cat, idx))
+                {
+                    selectedCategory = cat;
+                    selectedImageIndex = idx;
+                    ShowPanel(difficultyPanel);
+                }
+                else
+                {
+                    pendingPurchaseCategory = cat;
+                    pendingPurchaseImageIndex = idx;
+                    purchaseText.text = $"是否花费 {GameDataManager.GetImagePrice(cat, idx)} 金币解锁这张图片？";
+                    ShowPanel(purchasePanel);
+                }
             });
         }
+    }
+    IEnumerator LoadGameAsync()
+    {
+        float startTime = Time.realtimeSinceStartup;
+        AsyncOperation asyncLoad = SceneManager.LoadSceneAsync("GameScene");
+        asyncLoad.allowSceneActivation = false; // 先不自动切换场景
+
+        // 定义显示进度和实际加载进度
+        float displayProgress = 0f;
+        float realProgress = 0f;
+
+        while (displayProgress < 1f || asyncLoad.progress < 0.9f)
+        {
+            // 实际加载进度（0~0.9 映射到 0~1）
+            realProgress = Mathf.Clamp01(asyncLoad.progress / 0.9f);
+
+            // 基于时间的显示进度：至少3秒到100%
+            float timeProgress = Mathf.Clamp01((Time.realtimeSinceStartup - startTime) / 3f);
+
+            // 显示进度取两者较小值，保证不会超过实际进度，也不会早于3秒到100%
+            displayProgress = Mathf.Min(realProgress, timeProgress);
+
+            // 更新文字
+            if (loadingText != null)
+                loadingText.text = $"加载中... {Mathf.RoundToInt(displayProgress * 100)}%";
+            if (loadingSlider != null)
+            {
+                loadingSlider.value = displayProgress;
+            }
+            yield return null;
+        }
+
+        // 确保显示100%后再切换
+        if (loadingText != null)
+            loadingText.text = "加载中... 100%";
+
+        // 激活场景
+        asyncLoad.allowSceneActivation = true;
     }
 }
