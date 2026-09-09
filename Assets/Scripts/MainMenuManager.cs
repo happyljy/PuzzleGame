@@ -1,34 +1,44 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
+using System.Text.RegularExpressions;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
-using System.Text.RegularExpressions;
+using Random = UnityEngine.Random;
 
 /// <summary>
 /// 主菜单管理器：负责主菜单所有 UI 面板的切换、分类按钮生成、图片选择、
-/// 个人信息、收藏、每日拼图、看广告恢复体力、购买等功能。
+/// 个人信息、收藏、每日拼图、看广告恢复体力、购买、上传图片管理等功能。
 /// </summary>
 public class MainMenuManager : MonoBehaviour
 {
     // ==================== UI 引用 ====================
 
+    [Header("修改名字")]
+    public Button changeNameButton;                 // 个人信息面板中的修改名字按钮
+
+    [Header("上传图片")]
+    public Button uploadButtonInProfile;            // 个人信息面板中的“上传管理”按钮
+    public GameObject uploadManagePanel;            // 上传管理面板（显示已上传图片并提供删除）
+    public RectTransform uploadScrollContent;       // 上传管理面板的 Content
+    public Button uploadCloseButton;                // 关闭上传管理面板按钮
+    public Button addImageButton;                   // 上传管理面板中的“添加图片”按钮
+
     [Header("每日拼图")]
     public Button dailyPuzzleButton;                // 每日拼图入口按钮
 
     [Header("加载面板")]
-    public GameObject loadingPanel;   // 加载面板物体
-    public Text loadingText;          // 加载提示文字
-
-    [Header("加载进度条")]
-    public Slider loadingSlider;
+    public GameObject loadingPanel;                 // 加载面板物体
+    public Text loadingText;                        // 加载提示文字
+    public Slider loadingSlider;                    // 加载进度条（可选）
 
     [Header("通用确认弹窗")]
     public GameObject confirmPanel;                 // 确认弹窗面板
     public Text confirmText;                        // 弹窗提示文字
     public Button confirmYesButton;                 // 确定按钮
     public Button confirmNoButton;                  // 取消按钮
-    private System.Action confirmAction;            // 确定按钮的回调
 
     [Header("广告恢复")]
     public Button adStaminaButton;                  // 看广告恢复体力按钮
@@ -99,14 +109,15 @@ public class MainMenuManager : MonoBehaviour
     private string pendingPurchaseCategory;         // 待购买的分类
     private int pendingPurchaseImageIndex;          // 待购买的图片索引
 
-    // 面板层级管理
-    private GameObject currentBasePanel;            // 当前基础面板（categoryScrollView 或 profilePanel）
-    private GameObject currentLayer2Panel;          // 当前第二层面板（imageSelectPanel 或 favoritesPanel）
-    private GameObject currentLayer3Panel;          // 当前第三层面板（difficultyPanel）
-    private GameObject currentLayer4Panel;          // 当前第四层面板（purchasePanel）
+    private GameObject currentBasePanel;            // 当前基础面板
+    private GameObject currentLayer2Panel;          // 当前第二层面板
+    private GameObject currentLayer3Panel;          // 当前第三层面板
+    private GameObject currentLayer4Panel;          // 当前第四层面板
 
-    // 保存每个分类按钮上的预览协程，用于停止和清理
     private Dictionary<Button, Coroutine> previewCoroutines = new Dictionary<Button, Coroutine>();
+
+    private System.Action confirmAction;            // 确认弹窗回调
+    private GameObject panelAfterNameChange;        // 名字修改成功后显示的面板
 
     void Awake()
     {
@@ -116,29 +127,32 @@ public class MainMenuManager : MonoBehaviour
 
     void Start()
     {
-        // 绑定每日拼图按钮
+        // ========== 绑定按钮事件 ==========
+        changeNameButton.onClick.AddListener(OnChangeNameClicked);
         dailyPuzzleButton.onClick.AddListener(OnDailyPuzzleClicked);
 
-        //加载页面初始隐藏
-        loadingPanel.SetActive(false);
+        // 上传相关
+        uploadButtonInProfile.onClick.AddListener(OpenUploadManagePanel);  // 打开上传管理面板
+        uploadCloseButton.onClick.AddListener(() => ShowPanel(profilePanel));
+        addImageButton.onClick.AddListener(OnUploadButtonClicked);        // 添加新图片
 
-        // 绑定确认弹窗按钮
+        // 确认弹窗
         confirmYesButton.onClick.AddListener(OnConfirmYes);
         confirmNoButton.onClick.AddListener(() => confirmPanel.SetActive(false));
         confirmPanel.SetActive(false);
 
-        // 绑定底部基础面板切换按钮
+        // 底部按钮
         profileButton.onClick.AddListener(() => ShowPanel(profilePanel));
         categoryButton.onClick.AddListener(() => ShowPanel(categoryScrollView));
 
-        // 收藏面板相关
+        // 收藏面板
         favoritesButton.onClick.AddListener(() => ShowPanel(favoritesPanel));
         favoritesCloseButton.onClick.AddListener(() => ShowPanel(currentBasePanel ?? profilePanel));
 
-        // 姓名确认按钮
+        // 姓名确认
         nameConfirmButton.onClick.AddListener(OnNameConfirmed);
 
-        // 难度面板取消按钮
+        // 难度取消
         difficultyCancelButton.onClick.AddListener(() =>
         {
             if (currentLayer2Panel != null)
@@ -147,27 +161,32 @@ public class MainMenuManager : MonoBehaviour
                 ShowPanel(currentBasePanel ?? categoryScrollView);
         });
 
-        // 初始化体力系统（第一次运行设置满体力）
+        // 初始化体力系统
         GameDataManager.InitStaminaSystem();
 
-        // 启动体力 UI 更新协程
+        // 启动体力更新协程
         StartCoroutine(UpdateStaminaUI());
 
-        // 根据是否已设置名字决定初始面板
+        // 初始显示
         if (string.IsNullOrEmpty(GameDataManager.PlayerName))
+        {
+            panelAfterNameChange = categoryScrollView;
             ShowPanel(nameInputPanel);
+        }
         else
+        {
             ShowPanel(categoryScrollView);
+        }
 
-        // 难度按钮绑定（测试时简单难度用 2x2，正式改为 6）
+        // 难度按钮（测试用 2x2，正式改回 6）
         easyButton.onClick.AddListener(() => StartGame(2));
         normalButton.onClick.AddListener(() => StartGame(8));
         hardButton.onClick.AddListener(() => StartGame(10));
 
-        // 看广告恢复体力按钮
+        // 看广告恢复体力
         adStaminaButton.onClick.AddListener(OnAdStaminaClicked);
 
-        // 购买面板按钮
+        // 购买面板
         confirmPurchaseButton.onClick.AddListener(ConfirmPurchase);
         cancelPurchaseButton.onClick.AddListener(() =>
         {
@@ -175,27 +194,25 @@ public class MainMenuManager : MonoBehaviour
             else ShowPanel(currentBasePanel ?? categoryScrollView);
         });
 
-        // 关闭图片选择面板按钮
+        // 关闭图片选择面板
         closeImagePanelButton.onClick.AddListener(() => ShowPanel(currentBasePanel ?? categoryScrollView));
 
-        // 更新金币显示并生成分类按钮
+        // 更新显示
         UpdateCoinDisplay();
         GenerateCategoryButtons();
+        loadingPanel.SetActive(false);
     }
 
     void OnEnable()
     {
-        // 每次激活时刷新金币和个人信息
         UpdateCoinDisplay();
         UpdateProfileUI();
     }
 
-    /// <summary>
-    /// 根据目标面板类型显示对应面板，并管理面板之间的层级关系
-    /// </summary>
+    // ==================== 面板管理 ====================
+
     void ShowPanel(GameObject panelToShow)
     {
-        // 如果目标为空，只隐藏所有覆盖面板
         if (panelToShow == null)
         {
             HideOverlayPanels();
@@ -203,69 +220,64 @@ public class MainMenuManager : MonoBehaviour
             return;
         }
 
-        // 无论显示哪个面板，先隐藏确认弹窗
         confirmPanel.SetActive(false);
 
-        // 判断面板类型
+        // 基础面板
         if (panelToShow == categoryScrollView || panelToShow == profilePanel)
         {
-            // 基础面板互斥
             HideOverlayPanels();
             categoryScrollView.SetActive(panelToShow == categoryScrollView);
             profilePanel.SetActive(panelToShow == profilePanel);
             currentBasePanel = panelToShow;
             panelToShow.transform.SetAsLastSibling();
         }
-        else if (panelToShow == imageSelectPanel || panelToShow == favoritesPanel)
+        // 第二层面板
+        else if (panelToShow == imageSelectPanel || panelToShow == favoritesPanel || panelToShow == uploadManagePanel)
         {
-            // 第二层面板
             HidePanelsAboveLayer2();
             imageSelectPanel.SetActive(panelToShow == imageSelectPanel);
             favoritesPanel.SetActive(panelToShow == favoritesPanel);
+            uploadManagePanel.SetActive(panelToShow == uploadManagePanel);
             currentLayer2Panel = panelToShow;
             panelToShow.transform.SetAsLastSibling();
         }
+        // 第三层面板
         else if (panelToShow == difficultyPanel)
         {
-            // 第三层面板
             HidePanelsAboveLayer3();
             difficultyPanel.SetActive(true);
             currentLayer3Panel = panelToShow;
             panelToShow.transform.SetAsLastSibling();
         }
+        // 第四层面板
         else if (panelToShow == purchasePanel)
         {
-            // 第四层面板
             HidePanelsAboveLayer4();
             purchasePanel.SetActive(true);
             currentLayer4Panel = panelToShow;
             panelToShow.transform.SetAsLastSibling();
         }
+        // 姓名输入面板
         else if (panelToShow == nameInputPanel)
         {
-            // 姓名输入面板：隐藏所有其他面板
             HideAllPanels();
             nameInputPanel.SetActive(true);
             nameInputPanel.transform.SetAsLastSibling();
             Canvas canvas = nameInputPanel.GetComponent<Canvas>();
-            if (canvas != null)
-            {
-                canvas.overrideSorting = true;
-                canvas.sortingOrder = 999;
-            }
+            if (canvas != null) { canvas.overrideSorting = true; canvas.sortingOrder = 999; }
         }
 
-        // 更新个人信息或收藏面板内容
+        // 更新内容
         if (panelToShow == profilePanel) UpdateProfileUI();
         if (panelToShow == favoritesPanel) PopulateFavoritesPanel();
+        if (panelToShow == uploadManagePanel) PopulateUploadManagePanel();
     }
-
-    // ==================== 面板隐藏辅助方法 ====================
 
     void HideOverlayPanels()
     {
         imageSelectPanel.SetActive(false);
         favoritesPanel.SetActive(false);
+        uploadManagePanel.SetActive(false);
         difficultyPanel.SetActive(false);
         purchasePanel.SetActive(false);
         nameInputPanel.SetActive(false);
@@ -301,6 +313,7 @@ public class MainMenuManager : MonoBehaviour
         profilePanel.SetActive(false);
         imageSelectPanel.SetActive(false);
         favoritesPanel.SetActive(false);
+        uploadManagePanel.SetActive(false);
         difficultyPanel.SetActive(false);
         purchasePanel.SetActive(false);
         nameInputPanel.SetActive(false);
@@ -310,38 +323,27 @@ public class MainMenuManager : MonoBehaviour
         currentLayer4Panel = null;
     }
 
-    // ==================== 分类按钮生成与预览 ====================
+    // ==================== 分类按钮生成 ====================
 
-    /// <summary>
-    /// 生成所有分类按钮，并启动预览图协程
-    /// </summary>
     void GenerateCategoryButtons()
     {
-        // 停止所有旧的预览协程
         foreach (var kvp in previewCoroutines)
         {
-            if (kvp.Value != null)
-                StopCoroutine(kvp.Value);
+            if (kvp.Value != null) StopCoroutine(kvp.Value);
         }
         previewCoroutines.Clear();
 
-        // 清空旧按钮
-        foreach (Transform child in categoryScrollContent)
-        {
-            Destroy(child.gameObject);
-        }
+        foreach (Transform child in categoryScrollContent) Destroy(child.gameObject);
 
-        // 设置 GridLayoutGroup 参数
         GridLayoutGroup grid = categoryScrollContent.GetComponent<GridLayoutGroup>();
-        if (grid == null)
-            grid = categoryScrollContent.gameObject.AddComponent<GridLayoutGroup>();
+        if (grid == null) grid = categoryScrollContent.gameObject.AddComponent<GridLayoutGroup>();
         grid.cellSize = new Vector2(350, 350);
         grid.spacing = new Vector2(50, 50);
         grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-        grid.constraintCount = 2;  // 两列
+        grid.constraintCount = 2;
         grid.childAlignment = TextAnchor.UpperCenter;
 
-        // 遍历所有分类
+        // 普通分类
         for (int i = 0; i < GameDataManager.Categories.Length; i++)
         {
             string category = GameDataManager.Categories[i];
@@ -350,27 +352,28 @@ public class MainMenuManager : MonoBehaviour
             Text label = btnObj.GetComponentInChildren<Text>();
             Image previewImage = btnObj.transform.Find("PreviewImage")?.GetComponent<Image>();
 
-            // 设置按钮文本（分类名，所有分类已免费，不显示价格）
-            bool unlocked = GameDataManager.IsCategoryUnlocked(category);
-            if (label != null)
-                label.text = unlocked ? category : $"{category}\n{GameDataManager.CategoryPrices[i]}金币";
-
-            // 绑定点击事件
+            if (label != null) label.text = category;
             int index = i;
             btn.onClick.AddListener(() => OnCategoryClicked(index));
 
-            // 启动预览图渐变协程
             if (previewImage != null)
             {
                 Coroutine coroutine = StartCoroutine(UpdateCategoryPreview(previewImage, category));
                 previewCoroutines[btn] = coroutine;
             }
         }
+
+        // 上传分类按钮
+        GameObject uploadBtnObj = Instantiate(categoryButtonPrefab, categoryScrollContent);
+        Button uploadBtn = uploadBtnObj.GetComponent<Button>();
+        Text uploadLabel = uploadBtnObj.GetComponentInChildren<Text>();
+        Image uploadPreview = uploadBtnObj.transform.Find("PreviewImage")?.GetComponent<Image>();
+
+        if (uploadLabel != null) uploadLabel.text = "上传";
+        if (uploadPreview != null) uploadPreview.sprite = null; // 可设置默认图标
+        uploadBtn.onClick.AddListener(() => OnCategoryClicked(GameDataManager.Categories.Length));
     }
 
-    /// <summary>
-    /// 体力 UI 更新协程，每秒刷新一次
-    /// </summary>
     IEnumerator UpdateStaminaUI()
     {
         while (true)
@@ -382,8 +385,7 @@ public class MainMenuManager : MonoBehaviour
 
     void UpdateStaminaDisplay()
     {
-        if (staminaText != null)
-            staminaText.text = $"体力：{GameDataManager.Stamina}/{GameDataManager.MaxStamina}";
+        if (staminaText != null) staminaText.text = $"体力：{GameDataManager.Stamina}/{GameDataManager.MaxStamina}";
         if (staminaSlider != null)
         {
             staminaSlider.maxValue = GameDataManager.MaxStamina;
@@ -392,9 +394,6 @@ public class MainMenuManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 单个分类按钮的预览图渐变切换
-    /// </summary>
     IEnumerator UpdateCategoryPreview(Image previewImage, string category)
     {
         if (previewImage == null) yield break;
@@ -410,18 +409,13 @@ public class MainMenuManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 图片渐变切换协程（淡出-换图-淡入）
-    /// </summary>
     IEnumerator FadeToSprite(Image image, Sprite newSprite)
     {
         if (image == null) yield break;
-
         float elapsed = 0f;
         Color startColor = image.color;
         Color transparentColor = new Color(startColor.r, startColor.g, startColor.b, 0f);
 
-        // 淡出
         while (elapsed < fadeDuration)
         {
             if (image == null) yield break;
@@ -433,7 +427,6 @@ public class MainMenuManager : MonoBehaviour
         if (image == null) yield break;
         image.sprite = newSprite;
 
-        // 淡入
         elapsed = 0f;
         while (elapsed < fadeDuration)
         {
@@ -447,80 +440,100 @@ public class MainMenuManager : MonoBehaviour
 
     // ==================== 分类点击与图片选择 ====================
 
-    /// <summary>
-    /// 分类按钮点击：直接打开图片选择面板（所有分类免费）
-    /// </summary>
     void OnCategoryClicked(int index)
     {
+        if (index == GameDataManager.Categories.Length) // 上传分类
+        {
+            selectedCategory = GameDataManager.UploadCategory;
+            OpenImageSelectPanel(GameDataManager.UploadCategory);
+            ShowPanel(imageSelectPanel);
+            return;
+        }
+
         string category = GameDataManager.Categories[index];
         selectedCategory = category;
         OpenImageSelectPanel(category);
         ShowPanel(imageSelectPanel);
     }
 
-    /// <summary>
-    /// 填充图片选择面板（包含随机按钮和分类下所有图片）
-    /// </summary>
     void OpenImageSelectPanel(string category)
     {
-        // 清空旧按钮
-        foreach (Transform child in imageScrollContent)
-            Destroy(child.gameObject);
+        foreach (Transform child in imageScrollContent) Destroy(child.gameObject);
 
-        // 设置 Grid
         GridLayoutGroup grid = imageScrollContent.GetComponent<GridLayoutGroup>();
-        if (grid == null)
-            grid = imageScrollContent.gameObject.AddComponent<GridLayoutGroup>();
+        if (grid == null) grid = imageScrollContent.gameObject.AddComponent<GridLayoutGroup>();
         grid.cellSize = new Vector2(350, 350);
         grid.spacing = new Vector2(50, 50);
         grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
         grid.constraintCount = 3;
         grid.childAlignment = TextAnchor.UpperCenter;
 
-        // 随机按钮
-        GameObject randomBtnObj = Instantiate(imageButtonPrefab, imageScrollContent);
-        Button randomBtn = randomBtnObj.GetComponent<Button>();
-        Text randomLabel = randomBtnObj.GetComponentInChildren<Text>();
-        Image randomImage = randomBtnObj.transform.Find("Image")?.GetComponent<Image>();
-        if (randomLabel != null) randomLabel.text = "随机";
-        if (randomImage != null)
+        List<Sprite> sprites = new List<Sprite>();
+        List<string> imageNames = new List<string>();
+
+        if (category == GameDataManager.UploadCategory)
         {
-            randomImage.sprite = null;
-            randomImage.color = new Color(0.8f, 0.8f, 0.8f, 1f);
+            List<string> files = GameDataManager.GetUploadedImages();
+            foreach (string file in files)
+            {
+                string path = GameDataManager.GetUploadedImagePath(file);
+                if (File.Exists(path))
+                {
+                    byte[] bytes = File.ReadAllBytes(path);
+                    Texture2D tex = new Texture2D(2, 2);
+                    tex.LoadImage(bytes);
+                    sprites.Add(Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f)));
+                    imageNames.Add(file);
+                }
+            }
         }
-        randomBtn.onClick.AddListener(() => OnImageClicked(-1));
+        else
+        {
+            Sprite[] loadedSprites = Resources.LoadAll<Sprite>("Art/" + category);
+            System.Array.Sort(loadedSprites, (a, b) => string.Compare(a.name, b.name));
+            sprites.AddRange(loadedSprites);
+            for (int i = 0; i < sprites.Count; i++) imageNames.Add(sprites[i].name);
+        }
 
-        // 加载分类下所有图片
-        Sprite[] sprites = Resources.LoadAll<Sprite>("Art/" + category);
-        System.Array.Sort(sprites, (a, b) => string.Compare(a.name, b.name));
-
-        for (int i = 0; i < sprites.Length; i++)
+        for (int i = 0; i < sprites.Count; i++)
         {
             GameObject imgBtnObj = Instantiate(imageButtonPrefab, imageScrollContent);
             Button imgBtn = imgBtnObj.GetComponent<Button>();
             Image img = imgBtnObj.transform.Find("Image")?.GetComponent<Image>();
             Text label = imgBtnObj.GetComponentInChildren<Text>();
 
-            if (img != null)
+            if (img != null) img.sprite = sprites[i];
+
+            if (category == GameDataManager.UploadCategory)
             {
-                img.sprite = sprites[i];
-                bool unlocked = GameDataManager.IsImageUnlocked(category, i);
-                img.color = unlocked ? Color.white : new Color(0.5f, 0.5f, 0.5f, 0.7f);
+                if (label != null) label.text = "";
             }
-            if (label != null)
-                label.text = GameDataManager.IsImageUnlocked(category, i) ? "" : $"{GameDataManager.GetImagePrice(category, i)}金币";
+            else
+            {
+                bool unlocked = GameDataManager.IsImageUnlocked(category, i);
+                if (img != null) img.color = unlocked ? Color.white : new Color(0.5f, 0.5f, 0.5f, 0.7f);
+                if (label != null) label.text = unlocked ? "" : $"{GameDataManager.GetImagePrice(category, i)}金币";
+            }
 
             int imageIndex = i;
             imgBtn.onClick.AddListener(() => OnImageClicked(imageIndex));
         }
+
+        imageSelectPanel.SetActive(true);
     }
 
-    /// <summary>
-    /// 图片点击：解锁则进入难度选择，未解锁则弹出购买
-    /// </summary>
     void OnImageClicked(int imageIndex)
     {
-        if (imageIndex == -1) // 随机
+        // 上传分类：直接进入难度选择
+        if (selectedCategory == GameDataManager.UploadCategory)
+        {
+            selectedImageIndex = imageIndex;
+            ShowPanel(difficultyPanel);
+            return;
+        }
+
+        // 普通分类
+        if (imageIndex == -1)
         {
             selectedImageIndex = -1;
             ShowPanel(difficultyPanel);
@@ -548,7 +561,6 @@ public class MainMenuManager : MonoBehaviour
 
     void ConfirmPurchase()
     {
-        // 如果 pendingPurchaseImageIndex == -1，表示购买分类（但当前所有分类免费，此分支基本不会触发）
         if (pendingPurchaseImageIndex == -1)
         {
             int price = GameDataManager.CategoryPrices[System.Array.IndexOf(GameDataManager.Categories, pendingPurchaseCategory)];
@@ -568,7 +580,6 @@ public class MainMenuManager : MonoBehaviour
         }
         else
         {
-            // 购买图片
             int price = GameDataManager.GetImagePrice(pendingPurchaseCategory, pendingPurchaseImageIndex);
             if (GameDataManager.SpendCoins(price))
             {
@@ -586,9 +597,6 @@ public class MainMenuManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 金币不足时文本闪烁红色两下
-    /// </summary>
     IEnumerator FlashCoinTextRed()
     {
         if (coinText == null || isFlashing) yield break;
@@ -602,6 +610,106 @@ public class MainMenuManager : MonoBehaviour
         yield return new WaitForSeconds(0.2f);
         coinText.color = originalColor;
         isFlashing = false;
+    }
+
+    // ==================== 上传图片管理 ====================
+
+    void OpenUploadManagePanel()
+    {
+        PopulateUploadManagePanel();
+        ShowPanel(uploadManagePanel);
+    }
+
+    void PopulateUploadManagePanel()
+    {
+        // 清空旧按钮
+        foreach (Transform child in uploadScrollContent)
+            Destroy(child.gameObject);
+
+        // ===== 添加 GridLayoutGroup =====
+        GridLayoutGroup grid = uploadScrollContent.GetComponent<GridLayoutGroup>();
+        if (grid == null)
+            grid = uploadScrollContent.gameObject.AddComponent<GridLayoutGroup>();
+        grid.cellSize = new Vector2(200, 200);       // 图片按钮大小，可调整
+        grid.spacing = new Vector2(20, 20);          // 间隔
+        grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        grid.constraintCount = 3;                    // 每行3个
+        grid.childAlignment = TextAnchor.UpperCenter;
+
+        // ===== 添加 ContentSizeFitter =====
+        ContentSizeFitter fitter = uploadScrollContent.GetComponent<ContentSizeFitter>();
+        if (fitter == null)
+            fitter = uploadScrollContent.gameObject.AddComponent<ContentSizeFitter>();
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;   // 高度自动扩展
+        fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained; // 宽度不自动调整
+
+        // 加载已上传图片并生成按钮
+
+        List<string> files = GameDataManager.GetUploadedImages();
+        foreach (string file in files)
+        {
+            string path = GameDataManager.GetUploadedImagePath(file);
+            if (!File.Exists(path)) continue;
+
+            byte[] bytes = File.ReadAllBytes(path);
+            Texture2D tex = new Texture2D(2, 2);
+            tex.LoadImage(bytes);
+            Sprite sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+
+            GameObject btnObj = Instantiate(imageButtonPrefab, uploadScrollContent);
+            Button btn = btnObj.GetComponent<Button>();
+            Image img = btnObj.transform.Find("Image")?.GetComponent<Image>();
+            if (img != null) img.sprite = sprite;
+
+            // 点击删除
+            string fileName = file;
+            btn.onClick.AddListener(() =>
+            {
+                GameDataManager.RemoveUploadedImage(fileName);
+                PopulateUploadManagePanel(); // 刷新列表
+            });
+
+            Text label = btnObj.GetComponentInChildren<Text>();
+            if (label != null) label.text = "删除";
+        }
+    }
+
+    void OnUploadButtonClicked()
+    {
+#if UNITY_EDITOR
+        string path = UnityEditor.EditorUtility.OpenFilePanel("选择图片", "", "png,jpg,jpeg");
+        if (!string.IsNullOrEmpty(path))
+        {
+            ProcessUploadedImage(path);
+        }
+#else
+        // 移动端需要 NativeGallery 插件，请自行导入
+        // NativeGallery.Permission permission = NativeGallery.GetImageFromGallery((path) => { if (path != null) ProcessUploadedImage(path); }, "选择图片", "image/*");
+        Debug.LogWarning("移动端请导入 NativeGallery 插件以启用相册选择");
+#endif
+    }
+
+    void ProcessUploadedImage(string sourcePath)
+    {
+        try
+        {
+            string uploadDir = Path.Combine(Application.persistentDataPath, "Uploads");
+            if (!Directory.Exists(uploadDir)) Directory.CreateDirectory(uploadDir);
+
+            string fileName = "upload_" + DateTime.Now.ToString("yyyyMMdd_HHmmss_fff") + Path.GetExtension(sourcePath);
+            string destPath = Path.Combine(uploadDir, fileName);
+            File.Copy(sourcePath, destPath, true);
+
+            GameDataManager.AddUploadedImage(fileName);
+            Debug.Log("上传成功: " + fileName);
+
+            if (categoryScrollView.activeSelf) GenerateCategoryButtons();
+            PopulateUploadManagePanel(); // 刷新管理面板
+        }
+        catch (Exception e)
+        {
+            Debug.LogError("上传图片失败: " + e.Message);
+        }
     }
 
     // ==================== 其他按钮事件 ====================
@@ -624,10 +732,9 @@ public class MainMenuManager : MonoBehaviour
         });
     }
 
-    // 模拟广告方法，实际项目替换为真实广告 SDK
     void ShowRewardedAd(System.Action onSuccess, System.Action onFail)
     {
-        onSuccess?.Invoke();
+        onSuccess?.Invoke(); // 模拟广告成功
     }
 
     void OnDailyPuzzleClicked()
@@ -651,9 +758,7 @@ public class MainMenuManager : MonoBehaviour
         confirmText.text = message;
         confirmAction = onConfirm;
         confirmPanel.SetActive(true);
-
         confirmPanel.transform.SetAsLastSibling();
-
         Canvas confirmCanvas = confirmPanel.GetComponent<Canvas>();
         if (confirmCanvas == null)
         {
@@ -674,25 +779,51 @@ public class MainMenuManager : MonoBehaviour
 
     void StartGame(int gridSize)
     {
-        // 保存难度选择参数
         PlayerPrefs.SetString("SelectedCategory", selectedCategory);
         PlayerPrefs.SetInt("Difficulty", gridSize);
         PlayerPrefs.SetInt("SelectedImageIndex", selectedImageIndex);
         PlayerPrefs.Save();
 
-        // 显示加载面板并置顶
         loadingPanel.SetActive(true);
-        loadingPanel.transform.SetAsLastSibling(); // 确保在 Canvas 最上层
+        loadingPanel.transform.SetAsLastSibling();
         if (loadingText != null) loadingText.text = "加载中...";
-
-        // 启动异步加载
         StartCoroutine(LoadGameAsync());
+    }
+
+    IEnumerator LoadGameAsync()
+    {
+        float startTime = Time.realtimeSinceStartup;
+        AsyncOperation asyncLoad = SceneManager.LoadSceneAsync("GameScene");
+        asyncLoad.allowSceneActivation = false;
+
+        float displayProgress = 0f;
+        float realProgress = 0f;
+
+        while (displayProgress < 1f || asyncLoad.progress < 0.9f)
+        {
+            realProgress = Mathf.Clamp01(asyncLoad.progress / 0.9f);
+            float timeProgress = Mathf.Clamp01((Time.realtimeSinceStartup - startTime) / 3f);
+            displayProgress = Mathf.Min(realProgress, timeProgress);
+
+            if (loadingText != null) loadingText.text = $"加载中... {Mathf.RoundToInt(displayProgress * 100)}%";
+            if (loadingSlider != null) loadingSlider.value = displayProgress;
+            yield return null;
+        }
+
+        if (loadingText != null) loadingText.text = "加载中... 100%";
+        asyncLoad.allowSceneActivation = true;
     }
 
     void UpdateCoinDisplay()
     {
-        if (coinText != null)
-            coinText.text = "金币：" + GameDataManager.Coins;
+        if (coinText != null) coinText.text = "金币：" + GameDataManager.Coins;
+    }
+
+    void OnChangeNameClicked()
+    {
+        panelAfterNameChange = profilePanel;
+        nameInputField.text = GameDataManager.PlayerName;
+        ShowPanel(nameInputPanel);
     }
 
     void OnNameConfirmed()
@@ -712,14 +843,13 @@ public class MainMenuManager : MonoBehaviour
 
         confirmPanel.SetActive(false);
         GameDataManager.PlayerName = name;
-        ShowPanel(categoryScrollView);
+        ShowPanel(panelAfterNameChange);
     }
 
     void UpdateProfileUI()
     {
         if (profileNameText != null) profileNameText.text = GameDataManager.PlayerName;
-        if (profileLevelText != null)
-            profileLevelText.text = $"等级 {GameDataManager.Level}  {GameDataManager.Experience}/{GameDataManager.GetRequiredExperience(GameDataManager.Level)}";
+        if (profileLevelText != null) profileLevelText.text = $"等级 {GameDataManager.Level}  {GameDataManager.Experience}/{GameDataManager.GetRequiredExperience(GameDataManager.Level)}";
         if (experienceSlider != null)
         {
             experienceSlider.maxValue = GameDataManager.GetRequiredExperience(GameDataManager.Level);
@@ -732,12 +862,10 @@ public class MainMenuManager : MonoBehaviour
 
     void PopulateFavoritesPanel()
     {
-        foreach (Transform child in favoritesScrollContent)
-            Destroy(child.gameObject);
+        foreach (Transform child in favoritesScrollContent) Destroy(child.gameObject);
 
         GridLayoutGroup grid = favoritesScrollContent.GetComponent<GridLayoutGroup>();
-        if (grid == null)
-            grid = favoritesScrollContent.gameObject.AddComponent<GridLayoutGroup>();
+        if (grid == null) grid = favoritesScrollContent.gameObject.AddComponent<GridLayoutGroup>();
         grid.cellSize = new Vector2(150, 150);
         grid.spacing = new Vector2(10, 10);
         grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
@@ -763,14 +891,12 @@ public class MainMenuManager : MonoBehaviour
             Text label = btnObj.GetComponentInChildren<Text>();
 
             bool unlocked = GameDataManager.IsImageUnlocked(category, imageIndex);
-
             if (img != null)
             {
                 img.sprite = sprites[imageIndex];
                 img.color = unlocked ? Color.white : new Color(0.5f, 0.5f, 0.5f, 0.7f);
             }
-            if (label != null)
-                label.text = unlocked ? "" : $"{GameDataManager.GetImagePrice(category, imageIndex)}金币";
+            if (label != null) label.text = unlocked ? "" : $"{GameDataManager.GetImagePrice(category, imageIndex)}金币";
 
             string cat = category;
             int idx = imageIndex;
@@ -791,43 +917,5 @@ public class MainMenuManager : MonoBehaviour
                 }
             });
         }
-    }
-    IEnumerator LoadGameAsync()
-    {
-        float startTime = Time.realtimeSinceStartup;
-        AsyncOperation asyncLoad = SceneManager.LoadSceneAsync("GameScene");
-        asyncLoad.allowSceneActivation = false; // 先不自动切换场景
-
-        // 定义显示进度和实际加载进度
-        float displayProgress = 0f;
-        float realProgress = 0f;
-
-        while (displayProgress < 1f || asyncLoad.progress < 0.9f)
-        {
-            // 实际加载进度（0~0.9 映射到 0~1）
-            realProgress = Mathf.Clamp01(asyncLoad.progress / 0.9f);
-
-            // 基于时间的显示进度：至少3秒到100%
-            float timeProgress = Mathf.Clamp01((Time.realtimeSinceStartup - startTime) / 3f);
-
-            // 显示进度取两者较小值，保证不会超过实际进度，也不会早于3秒到100%
-            displayProgress = Mathf.Min(realProgress, timeProgress);
-
-            // 更新文字
-            if (loadingText != null)
-                loadingText.text = $"加载中... {Mathf.RoundToInt(displayProgress * 100)}%";
-            if (loadingSlider != null)
-            {
-                loadingSlider.value = displayProgress;
-            }
-            yield return null;
-        }
-
-        // 确保显示100%后再切换
-        if (loadingText != null)
-            loadingText.text = "加载中... 100%";
-
-        // 激活场景
-        asyncLoad.allowSceneActivation = true;
     }
 }

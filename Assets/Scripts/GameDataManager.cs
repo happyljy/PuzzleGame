@@ -2,6 +2,7 @@ using UnityEngine;
 using System;
 using System.Collections.Generic;
 using Random = UnityEngine.Random;
+using System.IO;
 
 /// <summary>
 /// 游戏数据管理器：负责所有持久化数据的读写，包括金币、经验、等级、收藏、
@@ -49,6 +50,60 @@ public static class GameDataManager
     private const string DailyPuzzleCompletedKey = "DailyPuzzleCompleted"; // 是否完成全部
     private const string DailyPuzzleCompletedFlagsKey = "DailyPuzzleCompletedFlags"; // 每张完成标志（新）
 
+
+    // 在 GameDataManager 类中添加以下字段和方法
+
+    public const string UploadCategory = "Upload";           // 上传分类的标识
+    private const string UploadImagesKey = "UploadImages";   // PlayerPrefs 键名，存储文件名列表
+
+    /// <summary>
+    /// 获取所有已上传图片的文件名列表（不包含路径，仅文件名）
+    /// </summary>
+    public static List<string> GetUploadedImages()
+    {
+        string saved = PlayerPrefs.GetString(UploadImagesKey, "");
+        if (string.IsNullOrEmpty(saved)) return new List<string>();
+        return new List<string>(saved.Split(','));
+    }
+
+    /// <summary>
+    /// 添加一个上传图片（文件名），并保存到 PlayerPrefs
+    /// </summary>
+    public static void AddUploadedImage(string fileName)
+    {
+        List<string> list = GetUploadedImages();
+        if (!list.Contains(fileName))
+        {
+            list.Add(fileName);
+            PlayerPrefs.SetString(UploadImagesKey, string.Join(",", list));
+            PlayerPrefs.Save();
+        }
+    }
+
+    /// <summary>
+    /// 删除一个上传图片（文件名），同时删除文件并更新列表
+    /// </summary>
+    public static void RemoveUploadedImage(string fileName)
+    {
+        List<string> list = GetUploadedImages();
+        if (list.Remove(fileName))
+        {
+            PlayerPrefs.SetString(UploadImagesKey, string.Join(",", list));
+            PlayerPrefs.Save();
+
+            // 删除持久化目录中的文件
+            string filePath = Path.Combine(Application.persistentDataPath, "Uploads", fileName);
+            if (File.Exists(filePath)) File.Delete(filePath);
+        }
+    }
+
+    /// <summary>
+    /// 获取上传图片的完整路径（Application.persistentDataPath/Uploads/文件名）
+    /// </summary>
+    public static string GetUploadedImagePath(string fileName)
+    {
+        return Path.Combine(Application.persistentDataPath, "Uploads", fileName);
+    }
     // ==================== 体力系统 ====================
 
     /// <summary>
