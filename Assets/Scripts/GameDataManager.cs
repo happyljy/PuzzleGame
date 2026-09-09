@@ -1,12 +1,12 @@
-using UnityEngine;
 using System;
 using System.Collections.Generic;
-using Random = UnityEngine.Random;
 using System.IO;
+using UnityEngine;
 
 /// <summary>
 /// 游戏数据管理器：负责所有持久化数据的读写，包括金币、经验、等级、收藏、
-/// 体力、每日拼图、分类和图片解锁状态等。所有数据通过 PlayerPrefs 存储。
+/// 体力、每日拼图、分类和图片解锁状态、上传图片、共享图片、头像等。
+/// 所有数据通过 PlayerPrefs 存储，文件通过 Application.persistentDataPath 存储。
 /// </summary>
 public static class GameDataManager
 {
@@ -20,6 +20,10 @@ public static class GameDataManager
     // 图片解锁设置
     public const int FreeImagesPerCategory = 5;   // 每个分类前5张图片免费
     public const int ImagePrice = 100;            // 第6张及以后的图片价格（统一价格）
+
+    // 特殊分类标识
+    public const string UploadCategory = "Upload";   // 上传图片的特殊分类
+    public const string SharedCategory = "Shared";   // 共享图片的特殊分类
 
     // ==================== PlayerPrefs 键名常量 ====================
 
@@ -44,66 +48,20 @@ public static class GameDataManager
     // 每日拼图
     public const int DailyPuzzleCount = 10;                            // 每日拼图总张数
     private const string DailyPuzzleDateKey = "DailyPuzzleDate";       // 生成日期（yyyyMMdd）
-    private const string DailyPuzzleProgressKey = "DailyPuzzleProgress"; // 旧版进度（已弃用）
     private const string DailyPuzzleImagesKey = "DailyPuzzleImages";   // 图片列表（分类_索引）
     private const string DailyPuzzleDifficultiesKey = "DailyPuzzleDifficulties"; // 难度列表
     private const string DailyPuzzleCompletedKey = "DailyPuzzleCompleted"; // 是否完成全部
     private const string DailyPuzzleCompletedFlagsKey = "DailyPuzzleCompletedFlags"; // 每张完成标志（新）
 
+    // 上传图片
+    private const string UploadImagesKey = "UploadImages";             // 上传图片文件名列表
 
-    // 在 GameDataManager 类中添加以下字段和方法
+    // 共享图片
+    private const string SharedImagesKey = "SharedImages";             // 共享图片文件名列表
 
-    public const string UploadCategory = "Upload";           // 上传分类的标识
-    private const string UploadImagesKey = "UploadImages";   // PlayerPrefs 键名，存储文件名列表
+    // 头像
+    private const string AvatarIndexKey = "AvatarIndex";               // 当前头像索引
 
-    /// <summary>
-    /// 获取所有已上传图片的文件名列表（不包含路径，仅文件名）
-    /// </summary>
-    public static List<string> GetUploadedImages()
-    {
-        string saved = PlayerPrefs.GetString(UploadImagesKey, "");
-        if (string.IsNullOrEmpty(saved)) return new List<string>();
-        return new List<string>(saved.Split(','));
-    }
-
-    /// <summary>
-    /// 添加一个上传图片（文件名），并保存到 PlayerPrefs
-    /// </summary>
-    public static void AddUploadedImage(string fileName)
-    {
-        List<string> list = GetUploadedImages();
-        if (!list.Contains(fileName))
-        {
-            list.Add(fileName);
-            PlayerPrefs.SetString(UploadImagesKey, string.Join(",", list));
-            PlayerPrefs.Save();
-        }
-    }
-
-    /// <summary>
-    /// 删除一个上传图片（文件名），同时删除文件并更新列表
-    /// </summary>
-    public static void RemoveUploadedImage(string fileName)
-    {
-        List<string> list = GetUploadedImages();
-        if (list.Remove(fileName))
-        {
-            PlayerPrefs.SetString(UploadImagesKey, string.Join(",", list));
-            PlayerPrefs.Save();
-
-            // 删除持久化目录中的文件
-            string filePath = Path.Combine(Application.persistentDataPath, "Uploads", fileName);
-            if (File.Exists(filePath)) File.Delete(filePath);
-        }
-    }
-
-    /// <summary>
-    /// 获取上传图片的完整路径（Application.persistentDataPath/Uploads/文件名）
-    /// </summary>
-    public static string GetUploadedImagePath(string fileName)
-    {
-        return Path.Combine(Application.persistentDataPath, "Uploads", fileName);
-    }
     // ==================== 体力系统 ====================
 
     /// <summary>
@@ -312,12 +270,10 @@ public static class GameDataManager
     public static void AddExperience(int amount)
     {
         Experience += amount;
-        Debug.Log($"获得经验：{amount}，当前经验：{Experience}，等级：{Level}");
         while (Experience >= GetRequiredExperience(Level))
         {
             Experience -= GetRequiredExperience(Level);
             Level++;
-            Debug.Log($"升级！当前等级：{Level}，剩余经验：{Experience}");
         }
     }
 
@@ -393,7 +349,6 @@ public static class GameDataManager
     /// </summary>
     public static void GenerateDailyPuzzle()
     {
-        // 收集所有分类的所有图片
         List<string> allImages = new List<string>();
         foreach (string category in Categories)
         {
@@ -403,7 +358,6 @@ public static class GameDataManager
                 allImages.Add(category + "_" + i);
         }
 
-        // 随机索引列表，用于不重复抽取
         List<int> indices = new List<int>();
         for (int i = 0; i < allImages.Count; i++) indices.Add(i);
         List<string> selectedImages = new List<string>();
@@ -413,24 +367,22 @@ public static class GameDataManager
         for (int i = 0; i < DailyPuzzleCount; i++)
         {
             if (indices.Count == 0) break;
-            int randIdx = Random.Range(0, indices.Count);
+            int randIdx = UnityEngine.Random.Range(0, indices.Count);
             int imageIdx = indices[randIdx];
             indices.RemoveAt(randIdx);
             selectedImages.Add(allImages[imageIdx]);
-            selectedDifficulties.Add(difficulties[Random.Range(0, difficulties.Length)]);
+            selectedDifficulties.Add(difficulties[UnityEngine.Random.Range(0, difficulties.Length)]);
         }
 
-        // 保存到 PlayerPrefs
         PlayerPrefs.SetString(DailyPuzzleDateKey, DateTime.UtcNow.ToString("yyyyMMdd"));
         PlayerPrefs.SetString(DailyPuzzleImagesKey, string.Join(",", selectedImages));
         PlayerPrefs.SetString(DailyPuzzleDifficultiesKey, string.Join(",", selectedDifficulties.ConvertAll(x => x.ToString())));
-        PlayerPrefs.SetInt(DailyPuzzleProgressKey, -1); // 旧版进度，保留但不再使用
         PlayerPrefs.SetInt(DailyPuzzleCompletedKey, 0);
         PlayerPrefs.Save();
     }
 
     /// <summary>
-    /// 获取每日拼图每张是否已完成（新方法，返回 bool 列表）
+    /// 获取每日拼图每张是否已完成（返回 bool 列表）
     /// </summary>
     public static List<bool> GetDailyPuzzleCompletedFlags()
     {
@@ -467,23 +419,6 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 获取每日拼图进度（旧版，已弃用，仅保留兼容）
-    /// </summary>
-    public static int GetDailyPuzzleProgress()
-    {
-        return PlayerPrefs.GetInt(DailyPuzzleProgressKey, -1);
-    }
-
-    /// <summary>
-    /// 设置每日拼图进度（旧版，已弃用）
-    /// </summary>
-    public static void SetDailyPuzzleProgress(int progress)
-    {
-        PlayerPrefs.SetInt(DailyPuzzleProgressKey, progress);
-        PlayerPrefs.Save();
-    }
-
-    /// <summary>
     /// 获取每日拼图图片列表
     /// </summary>
     public static List<string> GetDailyPuzzleImages()
@@ -514,6 +449,109 @@ public static class GameDataManager
     public static void SetDailyPuzzleCompleted()
     {
         PlayerPrefs.SetInt(DailyPuzzleCompletedKey, 1);
+        PlayerPrefs.Save();
+    }
+
+    // ==================== 上传图片 ====================
+
+    /// <summary>
+    /// 获取所有已上传图片的文件名列表
+    /// </summary>
+    public static List<string> GetUploadedImages()
+    {
+        string saved = PlayerPrefs.GetString(UploadImagesKey, "");
+        if (string.IsNullOrEmpty(saved)) return new List<string>();
+        return new List<string>(saved.Split(','));
+    }
+
+    /// <summary>
+    /// 添加一个上传图片文件名
+    /// </summary>
+    public static void AddUploadedImage(string fileName)
+    {
+        List<string> list = GetUploadedImages();
+        if (!list.Contains(fileName))
+        {
+            list.Add(fileName);
+            PlayerPrefs.SetString(UploadImagesKey, string.Join(",", list));
+            PlayerPrefs.Save();
+        }
+    }
+
+    /// <summary>
+    /// 删除一个上传图片（同时删除文件）
+    /// </summary>
+    public static void RemoveUploadedImage(string fileName)
+    {
+        List<string> list = GetUploadedImages();
+        if (list.Remove(fileName))
+        {
+            PlayerPrefs.SetString(UploadImagesKey, string.Join(",", list));
+            PlayerPrefs.Save();
+
+            string filePath = GetUploadedImagePath(fileName);
+            if (File.Exists(filePath)) File.Delete(filePath);
+        }
+    }
+
+    /// <summary>
+    /// 获取上传图片的完整路径
+    /// </summary>
+    public static string GetUploadedImagePath(string fileName)
+    {
+        return Path.Combine(Application.persistentDataPath, "Uploads", fileName);
+    }
+
+    // ==================== 共享图片 ====================
+
+    /// <summary>
+    /// 获取所有共享图片的文件名列表
+    /// </summary>
+    public static List<string> GetSharedImages()
+    {
+        string saved = PlayerPrefs.GetString(SharedImagesKey, "");
+        if (string.IsNullOrEmpty(saved)) return new List<string>();
+        return new List<string>(saved.Split(','));
+    }
+
+    /// <summary>
+    /// 添加一个共享图片文件名
+    /// </summary>
+    public static void AddSharedImage(string fileName)
+    {
+        List<string> list = GetSharedImages();
+        if (!list.Contains(fileName))
+        {
+            list.Add(fileName);
+            PlayerPrefs.SetString(SharedImagesKey, string.Join(",", list));
+            PlayerPrefs.Save();
+        }
+    }
+
+    /// <summary>
+    /// 获取共享图片的完整路径
+    /// </summary>
+    public static string GetSharedImagePath(string fileName)
+    {
+        return Path.Combine(Application.persistentDataPath, "Shared", fileName);
+    }
+
+    // ==================== 头像 ====================
+
+    /// <summary>
+    /// 获取当前头像索引（从0开始）
+    /// </summary>
+    public static int GetAvatarIndex()
+    {
+        return PlayerPrefs.GetInt(AvatarIndexKey, 0);
+    }
+
+    /// <summary>
+    /// 设置当前头像索引
+    /// </summary>
+    public static void SetAvatarIndex(int index)
+    {
+        PlayerPrefs.SetInt(AvatarIndexKey, index);
         PlayerPrefs.Save();
     }
 

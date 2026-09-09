@@ -10,149 +10,227 @@ using Random = UnityEngine.Random;
 
 /// <summary>
 /// 主菜单管理器：负责主菜单所有 UI 面板的切换、分类按钮生成、图片选择、
-/// 个人信息、收藏、每日拼图、看广告恢复体力、购买、上传图片管理等功能。
+/// 个人信息、收藏、每日拼图、看广告恢复体力、购买、上传图片管理、
+/// 局域网分享（手动连接、多选下载、共享分类）等功能。
 /// </summary>
 public class MainMenuManager : MonoBehaviour
 {
     // ==================== UI 引用 ====================
 
+    [Header("停止广播")]
+    public Button stopBroadcastButton;
+
+    [Header("局域网分享 UI")]
+    public GameObject deviceListPanel;
+    public RectTransform deviceListContent;
+    public GameObject deviceButtonPrefab;
+    public float deviceButtonWidth = 620f;
+    public float deviceButtonHeight = 100f;
+    public Button cancelDiscoverButton;
+
+    public GameObject remoteImagePanel;
+    public RectTransform remoteImageContent;
+    public GameObject remoteImageButtonPrefab;
+    public Button cancelConnectButton;
+    public Button downloadSelectedButton;
+    public Text remoteStatusText;
+
+    public GameObject shareSelectPanel;
+    public RectTransform shareSelectContent;
+    public Button startSharingButton;
+    public Button cancelShareSelectButton;
+
+    [Header("局域网分享")]
+    public Button shareButton;
+    public Button receiveButton;
+    public Text shareStatusText;
+
+    [Header("共享分类")]
+    public GameObject sharedImagePanel;
+    public RectTransform sharedImageContent;
+    public Button sharedCloseButton;
+
     [Header("修改名字")]
-    public Button changeNameButton;                 // 个人信息面板中的修改名字按钮
+    public Button changeNameButton;
+
+    [Header("换头像")]
+    public Button changeAvatarButton;
+    public GameObject avatarSelectPanel;
+    public RectTransform avatarScrollContent;
+    public GameObject avatarButtonPrefab;
+    public Button avatarCloseButton;
+    public Image profileAvatarImage;
 
     [Header("上传图片")]
-    public Button uploadButtonInProfile;            // 个人信息面板中的“上传管理”按钮
-    public GameObject uploadManagePanel;            // 上传管理面板（显示已上传图片并提供删除）
-    public RectTransform uploadScrollContent;       // 上传管理面板的 Content
-    public Button uploadCloseButton;                // 关闭上传管理面板按钮
-    public Button addImageButton;                   // 上传管理面板中的“添加图片”按钮
+    public Button uploadButtonInProfile;
+    public GameObject uploadManagePanel;
+    public RectTransform uploadScrollContent;
+    public Button uploadCloseButton;
+    public Button addImageButton;
 
     [Header("每日拼图")]
-    public Button dailyPuzzleButton;                // 每日拼图入口按钮
+    public Button dailyPuzzleButton;
 
     [Header("加载面板")]
-    public GameObject loadingPanel;                 // 加载面板物体
-    public Text loadingText;                        // 加载提示文字
-    public Slider loadingSlider;                    // 加载进度条（可选）
+    public GameObject loadingPanel;
+    public Text loadingText;
+    public Slider loadingSlider;
 
     [Header("通用确认弹窗")]
-    public GameObject confirmPanel;                 // 确认弹窗面板
-    public Text confirmText;                        // 弹窗提示文字
-    public Button confirmYesButton;                 // 确定按钮
-    public Button confirmNoButton;                  // 取消按钮
+    public GameObject confirmPanel;
+    public Text confirmText;
+    public Button confirmYesButton;
+    public Button confirmNoButton;
 
     [Header("广告恢复")]
-    public Button adStaminaButton;                  // 看广告恢复体力按钮
+    public Button adStaminaButton;
 
     [Header("体力显示")]
-    public Text staminaText;                        // 体力数值文本
-    public Slider staminaSlider;                    // 体力条
+    public Text staminaText;
+    public Slider staminaSlider;
 
     [Header("分类 ScrollView")]
-    public GameObject categoryScrollView;           // 分类滚动视图（整个物体）
-    public RectTransform categoryScrollContent;     // 分类按钮的父物体
-    public GameObject categoryButtonPrefab;         // 分类按钮预制体
+    public GameObject categoryScrollView;
+    public RectTransform categoryScrollContent;
+    public GameObject categoryButtonPrefab;
 
     [Header("分类预览设置")]
-    public float previewChangeInterval = 3f;        // 预览图切换间隔（秒）
-    public float fadeDuration = 0.5f;               // 渐变时长
+    public float previewChangeInterval = 3f;
+    public float fadeDuration = 0.5f;
 
     [Header("图片选择面板")]
-    public GameObject imageSelectPanel;             // 图片选择面板
-    public Button closeImagePanelButton;            // 关闭图片面板按钮
-    public RectTransform imageScrollContent;        // 图片按钮的父物体
-    public GameObject imageButtonPrefab;            // 图片按钮预制体
+    public GameObject imageSelectPanel;
+    public Button closeImagePanelButton;
+    public RectTransform imageScrollContent;
+    public GameObject imageButtonPrefab;
 
     [Header("难度面板")]
-    public GameObject difficultyPanel;              // 难度选择面板
-    public Button easyButton;                       // 简单难度按钮
-    public Button normalButton;                     // 普通难度按钮
-    public Button hardButton;                       // 困难难度按钮
+    public GameObject difficultyPanel;
+    public Button easyButton;
+    public Button normalButton;
+    public Button hardButton;
 
     [Header("购买面板")]
-    public GameObject purchasePanel;                // 购买面板
-    public Text purchaseText;                       // 购买提示文字
-    public Button confirmPurchaseButton;            // 确认购买按钮
-    public Button cancelPurchaseButton;             // 取消购买按钮
+    public GameObject purchasePanel;
+    public Text purchaseText;
+    public Button confirmPurchaseButton;
+    public Button cancelPurchaseButton;
 
     [Header("金币显示")]
-    public Text coinText;                           // 金币数量文本
+    public Text coinText;
 
     [Header("个人信息")]
-    public GameObject profilePanel;                 // 个人信息面板
-    public Text profileNameText;                    // 玩家名字
-    public Text profileLevelText;                   // 等级和经验文本
-    public Slider experienceSlider;                 // 经验条
-    public Button favoritesButton;                  // 我的收藏按钮
+    public GameObject profilePanel;
+    public Text profileNameText;
+    public Text profileLevelText;
+    public Slider experienceSlider;
+    public Button favoritesButton;
 
     [Header("姓名输入面板")]
-    public GameObject nameInputPanel;               // 姓名输入面板
-    public InputField nameInputField;               // 姓名输入框
-    public Button nameConfirmButton;                // 确认名字按钮
+    public GameObject nameInputPanel;
+    public InputField nameInputField;
+    public Button nameConfirmButton;
 
     [Header("我的收藏面板")]
-    public GameObject favoritesPanel;               // 收藏面板
-    public RectTransform favoritesScrollContent;    // 收藏图片的父物体
-    public Button favoritesCloseButton;             // 关闭收藏面板按钮
+    public GameObject favoritesPanel;
+    public RectTransform favoritesScrollContent;
+    public Button favoritesCloseButton;
 
     [Header("底部按钮")]
-    public Button profileButton;                    // 个人信息底部按钮
-    public Button categoryButton;                   // 分类底部按钮
+    public Button profileButton;
+    public Button categoryButton;
 
     [Header("难度面板取消按钮")]
-    public Button difficultyCancelButton;           // 难度面板取消按钮
+    public Button difficultyCancelButton;
 
     // ==================== 私有状态 ====================
 
-    private bool isFlashing = false;                // 金币文本是否正在闪烁
-    private string selectedCategory;                // 当前选中的分类
-    private int selectedImageIndex = -1;            // 当前选中的图片索引（-1为随机）
-    private string pendingPurchaseCategory;         // 待购买的分类
-    private int pendingPurchaseImageIndex;          // 待购买的图片索引
+    private bool isFlashing = false;
+    private string selectedCategory;
+    private int selectedImageIndex = -1;
+    private string pendingPurchaseCategory;
+    private int pendingPurchaseImageIndex;
 
-    private GameObject currentBasePanel;            // 当前基础面板
-    private GameObject currentLayer2Panel;          // 当前第二层面板
-    private GameObject currentLayer3Panel;          // 当前第三层面板
-    private GameObject currentLayer4Panel;          // 当前第四层面板
+    private GameObject currentBasePanel;
+    private GameObject currentLayer2Panel;
+    private GameObject currentLayer3Panel;
+    private GameObject currentLayer4Panel;
 
     private Dictionary<Button, Coroutine> previewCoroutines = new Dictionary<Button, Coroutine>();
 
-    private System.Action confirmAction;            // 确认弹窗回调
-    private GameObject panelAfterNameChange;        // 名字修改成功后显示的面板
+    private System.Action confirmAction;
+    private GameObject panelAfterNameChange;
+    private Sprite[] avatarSprites;
+
+    private List<string> discoveredDevices = new List<string>();
+    private List<string> remoteImageFiles = new List<string>();
+    private HashSet<int> selectedRemoteIndices = new HashSet<int>();
+    private List<string> shareSelectedFiles = new List<string>();
+
+    private string connectedServerIP = null;
 
     void Awake()
     {
-        // 测试时可启用此行清空数据，正式版请注释掉
-        // GameDataManager.ResetForEditor();
+        // GameDataManager.ResetForEditor(); // 测试用
     }
 
     void Start()
     {
-        // ========== 绑定按钮事件 ==========
+        LANShareManager.Instance.OnSharingStopped += HandleSharingStopped;
+
+        stopBroadcastButton.onClick.AddListener(() => {
+            LANShareManager.Instance.StopSharing();
+            LANShareManager.Instance.DisconnectFromServer();
+            shareStatusText.text = "连接已断开";
+
+            // 关闭分享相关面板并返回之前的个人面板或分类面板
+            ShowPanel(currentBasePanel ?? profilePanel);
+        });
+
+        shareButton.onClick.AddListener(OnShareButtonClicked);
+        receiveButton.onClick.AddListener(OnReceiveButtonClicked);
+
+        cancelDiscoverButton.onClick.AddListener(() => {
+            LANShareManager.Instance.StopDiscovery();
+            ShowPanel(currentBasePanel ?? categoryScrollView);
+        });
+
+        cancelConnectButton.onClick.AddListener(() => {
+            LANShareManager.Instance.DisconnectFromServer();
+            ShowPanel(currentBasePanel ?? categoryScrollView);
+        });
+
+        downloadSelectedButton.onClick.AddListener(DownloadSelectedImages);
+
+        startSharingButton.onClick.AddListener(StartSharingSelectedFiles);
+        cancelShareSelectButton.onClick.AddListener(() => {
+            // 关闭分享选择面板，并返回基础面板（个人面板或分类面板）
+            ShowPanel(currentBasePanel ?? profilePanel);
+        });
+
         changeNameButton.onClick.AddListener(OnChangeNameClicked);
         dailyPuzzleButton.onClick.AddListener(OnDailyPuzzleClicked);
 
-        // 上传相关
-        uploadButtonInProfile.onClick.AddListener(OpenUploadManagePanel);  // 打开上传管理面板
-        uploadCloseButton.onClick.AddListener(() => ShowPanel(profilePanel));
-        addImageButton.onClick.AddListener(OnUploadButtonClicked);        // 添加新图片
+        changeAvatarButton.onClick.AddListener(OpenAvatarSelectPanel);
+        avatarCloseButton.onClick.AddListener(() => ShowPanel(profilePanel));
 
-        // 确认弹窗
+        uploadButtonInProfile.onClick.AddListener(OpenUploadManagePanel);
+        uploadCloseButton.onClick.AddListener(() => ShowPanel(profilePanel));
+        addImageButton.onClick.AddListener(OnUploadButtonClicked);
+
         confirmYesButton.onClick.AddListener(OnConfirmYes);
         confirmNoButton.onClick.AddListener(() => confirmPanel.SetActive(false));
-        confirmPanel.SetActive(false);
 
-        // 底部按钮
         profileButton.onClick.AddListener(() => ShowPanel(profilePanel));
         categoryButton.onClick.AddListener(() => ShowPanel(categoryScrollView));
 
-        // 收藏面板
         favoritesButton.onClick.AddListener(() => ShowPanel(favoritesPanel));
         favoritesCloseButton.onClick.AddListener(() => ShowPanel(currentBasePanel ?? profilePanel));
 
-        // 姓名确认
+        sharedCloseButton.onClick.AddListener(() => ShowPanel(categoryScrollView));
+
         nameConfirmButton.onClick.AddListener(OnNameConfirmed);
 
-        // 难度取消
         difficultyCancelButton.onClick.AddListener(() =>
         {
             if (currentLayer2Panel != null)
@@ -161,13 +239,9 @@ public class MainMenuManager : MonoBehaviour
                 ShowPanel(currentBasePanel ?? categoryScrollView);
         });
 
-        // 初始化体力系统
         GameDataManager.InitStaminaSystem();
-
-        // 启动体力更新协程
         StartCoroutine(UpdateStaminaUI());
 
-        // 初始显示
         if (string.IsNullOrEmpty(GameDataManager.PlayerName))
         {
             panelAfterNameChange = categoryScrollView;
@@ -178,15 +252,12 @@ public class MainMenuManager : MonoBehaviour
             ShowPanel(categoryScrollView);
         }
 
-        // 难度按钮（测试用 2x2，正式改回 6）
         easyButton.onClick.AddListener(() => StartGame(2));
         normalButton.onClick.AddListener(() => StartGame(8));
         hardButton.onClick.AddListener(() => StartGame(10));
 
-        // 看广告恢复体力
         adStaminaButton.onClick.AddListener(OnAdStaminaClicked);
 
-        // 购买面板
         confirmPurchaseButton.onClick.AddListener(ConfirmPurchase);
         cancelPurchaseButton.onClick.AddListener(() =>
         {
@@ -194,13 +265,17 @@ public class MainMenuManager : MonoBehaviour
             else ShowPanel(currentBasePanel ?? categoryScrollView);
         });
 
-        // 关闭图片选择面板
         closeImagePanelButton.onClick.AddListener(() => ShowPanel(currentBasePanel ?? categoryScrollView));
 
-        // 更新显示
         UpdateCoinDisplay();
         GenerateCategoryButtons();
         loadingPanel.SetActive(false);
+
+        avatarSelectPanel.SetActive(false);
+        shareSelectPanel.SetActive(false);
+        deviceListPanel.SetActive(false);
+        remoteImagePanel.SetActive(false);
+        sharedImagePanel.SetActive(false);
     }
 
     void OnEnable()
@@ -210,19 +285,11 @@ public class MainMenuManager : MonoBehaviour
     }
 
     // ==================== 面板管理 ====================
-
     void ShowPanel(GameObject panelToShow)
     {
-        if (panelToShow == null)
-        {
-            HideOverlayPanels();
-            confirmPanel.SetActive(false);
-            return;
-        }
-
+        if (panelToShow == null) { HideOverlayPanels(); confirmPanel.SetActive(false); return; }
         confirmPanel.SetActive(false);
 
-        // 基础面板
         if (panelToShow == categoryScrollView || panelToShow == profilePanel)
         {
             HideOverlayPanels();
@@ -231,17 +298,36 @@ public class MainMenuManager : MonoBehaviour
             currentBasePanel = panelToShow;
             panelToShow.transform.SetAsLastSibling();
         }
-        // 第二层面板
-        else if (panelToShow == imageSelectPanel || panelToShow == favoritesPanel || panelToShow == uploadManagePanel)
+        else if (panelToShow == imageSelectPanel || panelToShow == favoritesPanel ||
+                 panelToShow == uploadManagePanel || panelToShow == avatarSelectPanel ||
+                 panelToShow == shareSelectPanel || panelToShow == deviceListPanel ||
+                 panelToShow == remoteImagePanel || panelToShow == sharedImagePanel)
         {
             HidePanelsAboveLayer2();
-            imageSelectPanel.SetActive(panelToShow == imageSelectPanel);
-            favoritesPanel.SetActive(panelToShow == favoritesPanel);
-            uploadManagePanel.SetActive(panelToShow == uploadManagePanel);
+            categoryScrollView.SetActive(false);
+            profilePanel.SetActive(false);
+
+            imageSelectPanel.SetActive(false);
+            favoritesPanel.SetActive(false);
+            uploadManagePanel.SetActive(false);
+            avatarSelectPanel.SetActive(false);
+            shareSelectPanel.SetActive(false);
+            deviceListPanel.SetActive(false);
+            remoteImagePanel.SetActive(false);
+            sharedImagePanel.SetActive(false);
+
+            if (panelToShow == imageSelectPanel) imageSelectPanel.SetActive(true);
+            else if (panelToShow == favoritesPanel) favoritesPanel.SetActive(true);
+            else if (panelToShow == uploadManagePanel) uploadManagePanel.SetActive(true);
+            else if (panelToShow == avatarSelectPanel) avatarSelectPanel.SetActive(true);
+            else if (panelToShow == shareSelectPanel) shareSelectPanel.SetActive(true);
+            else if (panelToShow == deviceListPanel) deviceListPanel.SetActive(true);
+            else if (panelToShow == remoteImagePanel) remoteImagePanel.SetActive(true);
+            else if (panelToShow == sharedImagePanel) sharedImagePanel.SetActive(true);
+
             currentLayer2Panel = panelToShow;
             panelToShow.transform.SetAsLastSibling();
         }
-        // 第三层面板
         else if (panelToShow == difficultyPanel)
         {
             HidePanelsAboveLayer3();
@@ -249,7 +335,6 @@ public class MainMenuManager : MonoBehaviour
             currentLayer3Panel = panelToShow;
             panelToShow.transform.SetAsLastSibling();
         }
-        // 第四层面板
         else if (panelToShow == purchasePanel)
         {
             HidePanelsAboveLayer4();
@@ -257,7 +342,6 @@ public class MainMenuManager : MonoBehaviour
             currentLayer4Panel = panelToShow;
             panelToShow.transform.SetAsLastSibling();
         }
-        // 姓名输入面板
         else if (panelToShow == nameInputPanel)
         {
             HideAllPanels();
@@ -267,7 +351,6 @@ public class MainMenuManager : MonoBehaviour
             if (canvas != null) { canvas.overrideSorting = true; canvas.sortingOrder = 999; }
         }
 
-        // 更新内容
         if (panelToShow == profilePanel) UpdateProfileUI();
         if (panelToShow == favoritesPanel) PopulateFavoritesPanel();
         if (panelToShow == uploadManagePanel) PopulateUploadManagePanel();
@@ -275,9 +358,14 @@ public class MainMenuManager : MonoBehaviour
 
     void HideOverlayPanels()
     {
+        avatarSelectPanel.SetActive(false);
         imageSelectPanel.SetActive(false);
         favoritesPanel.SetActive(false);
         uploadManagePanel.SetActive(false);
+        shareSelectPanel.SetActive(false);
+        deviceListPanel.SetActive(false);
+        remoteImagePanel.SetActive(false);
+        sharedImagePanel.SetActive(false);
         difficultyPanel.SetActive(false);
         purchasePanel.SetActive(false);
         nameInputPanel.SetActive(false);
@@ -288,6 +376,11 @@ public class MainMenuManager : MonoBehaviour
 
     void HidePanelsAboveLayer2()
     {
+        avatarSelectPanel.SetActive(false);
+        shareSelectPanel.SetActive(false);
+        deviceListPanel.SetActive(false);
+        remoteImagePanel.SetActive(false);
+        sharedImagePanel.SetActive(false);
         difficultyPanel.SetActive(false);
         purchasePanel.SetActive(false);
         nameInputPanel.SetActive(false);
@@ -309,11 +402,16 @@ public class MainMenuManager : MonoBehaviour
 
     void HideAllPanels()
     {
+        avatarSelectPanel.SetActive(false);
         categoryScrollView.SetActive(false);
         profilePanel.SetActive(false);
         imageSelectPanel.SetActive(false);
         favoritesPanel.SetActive(false);
         uploadManagePanel.SetActive(false);
+        shareSelectPanel.SetActive(false);
+        deviceListPanel.SetActive(false);
+        remoteImagePanel.SetActive(false);
+        sharedImagePanel.SetActive(false);
         difficultyPanel.SetActive(false);
         purchasePanel.SetActive(false);
         nameInputPanel.SetActive(false);
@@ -324,15 +422,10 @@ public class MainMenuManager : MonoBehaviour
     }
 
     // ==================== 分类按钮生成 ====================
-
     void GenerateCategoryButtons()
     {
-        foreach (var kvp in previewCoroutines)
-        {
-            if (kvp.Value != null) StopCoroutine(kvp.Value);
-        }
+        foreach (var kvp in previewCoroutines) if (kvp.Value != null) StopCoroutine(kvp.Value);
         previewCoroutines.Clear();
-
         foreach (Transform child in categoryScrollContent) Destroy(child.gameObject);
 
         GridLayoutGroup grid = categoryScrollContent.GetComponent<GridLayoutGroup>();
@@ -343,7 +436,6 @@ public class MainMenuManager : MonoBehaviour
         grid.constraintCount = 2;
         grid.childAlignment = TextAnchor.UpperCenter;
 
-        // 普通分类
         for (int i = 0; i < GameDataManager.Categories.Length; i++)
         {
             string category = GameDataManager.Categories[i];
@@ -355,7 +447,6 @@ public class MainMenuManager : MonoBehaviour
             if (label != null) label.text = category;
             int index = i;
             btn.onClick.AddListener(() => OnCategoryClicked(index));
-
             if (previewImage != null)
             {
                 Coroutine coroutine = StartCoroutine(UpdateCategoryPreview(previewImage, category));
@@ -368,10 +459,30 @@ public class MainMenuManager : MonoBehaviour
         Button uploadBtn = uploadBtnObj.GetComponent<Button>();
         Text uploadLabel = uploadBtnObj.GetComponentInChildren<Text>();
         Image uploadPreview = uploadBtnObj.transform.Find("PreviewImage")?.GetComponent<Image>();
-
         if (uploadLabel != null) uploadLabel.text = "上传";
-        if (uploadPreview != null) uploadPreview.sprite = null; // 可设置默认图标
+        if (uploadPreview != null) uploadPreview.sprite = null;
         uploadBtn.onClick.AddListener(() => OnCategoryClicked(GameDataManager.Categories.Length));
+
+        // 共享分类按钮
+        GameObject sharedBtnObj = Instantiate(categoryButtonPrefab, categoryScrollContent);
+        Button sharedBtn = sharedBtnObj.GetComponent<Button>();
+        Text sharedLabel = sharedBtnObj.GetComponentInChildren<Text>();
+        Image sharedPreview = sharedBtnObj.transform.Find("PreviewImage")?.GetComponent<Image>();
+        if (sharedLabel != null) sharedLabel.text = "共享";
+        if (sharedPreview != null) sharedPreview.sprite = null;
+        sharedBtn.onClick.AddListener(OnSharedCategoryClicked);
+    }
+
+
+    void HandleSharingStopped()
+    {
+        if (shareStatusText != null) shareStatusText.text = "分享已停止";
+    }
+
+    void OnDestroy()
+    {
+        if (LANShareManager.Instance != null)
+            LANShareManager.Instance.OnSharingStopped -= HandleSharingStopped;
     }
 
     IEnumerator UpdateStaminaUI()
@@ -442,7 +553,7 @@ public class MainMenuManager : MonoBehaviour
 
     void OnCategoryClicked(int index)
     {
-        if (index == GameDataManager.Categories.Length) // 上传分类
+        if (index == GameDataManager.Categories.Length)
         {
             selectedCategory = GameDataManager.UploadCategory;
             OpenImageSelectPanel(GameDataManager.UploadCategory);
@@ -462,8 +573,8 @@ public class MainMenuManager : MonoBehaviour
 
         GridLayoutGroup grid = imageScrollContent.GetComponent<GridLayoutGroup>();
         if (grid == null) grid = imageScrollContent.gameObject.AddComponent<GridLayoutGroup>();
-        grid.cellSize = new Vector2(350, 350);
-        grid.spacing = new Vector2(50, 50);
+        grid.cellSize = new Vector2(300, 300);
+        grid.spacing = new Vector2(40, 40);
         grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
         grid.constraintCount = 3;
         grid.childAlignment = TextAnchor.UpperCenter;
@@ -524,7 +635,6 @@ public class MainMenuManager : MonoBehaviour
 
     void OnImageClicked(int imageIndex)
     {
-        // 上传分类：直接进入难度选择
         if (selectedCategory == GameDataManager.UploadCategory)
         {
             selectedImageIndex = imageIndex;
@@ -532,7 +642,6 @@ public class MainMenuManager : MonoBehaviour
             return;
         }
 
-        // 普通分类
         if (imageIndex == -1)
         {
             selectedImageIndex = -1;
@@ -622,28 +731,20 @@ public class MainMenuManager : MonoBehaviour
 
     void PopulateUploadManagePanel()
     {
-        // 清空旧按钮
-        foreach (Transform child in uploadScrollContent)
-            Destroy(child.gameObject);
+        foreach (Transform child in uploadScrollContent) Destroy(child.gameObject);
 
-        // ===== 添加 GridLayoutGroup =====
         GridLayoutGroup grid = uploadScrollContent.GetComponent<GridLayoutGroup>();
-        if (grid == null)
-            grid = uploadScrollContent.gameObject.AddComponent<GridLayoutGroup>();
-        grid.cellSize = new Vector2(200, 200);       // 图片按钮大小，可调整
-        grid.spacing = new Vector2(20, 20);          // 间隔
+        if (grid == null) grid = uploadScrollContent.gameObject.AddComponent<GridLayoutGroup>();
+        grid.cellSize = new Vector2(200, 200);
+        grid.spacing = new Vector2(20, 20);
         grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-        grid.constraintCount = 3;                    // 每行3个
+        grid.constraintCount = 3;
         grid.childAlignment = TextAnchor.UpperCenter;
 
-        // ===== 添加 ContentSizeFitter =====
         ContentSizeFitter fitter = uploadScrollContent.GetComponent<ContentSizeFitter>();
-        if (fitter == null)
-            fitter = uploadScrollContent.gameObject.AddComponent<ContentSizeFitter>();
-        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;   // 高度自动扩展
-        fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained; // 宽度不自动调整
-
-        // 加载已上传图片并生成按钮
+        if (fitter == null) fitter = uploadScrollContent.gameObject.AddComponent<ContentSizeFitter>();
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
 
         List<string> files = GameDataManager.GetUploadedImages();
         foreach (string file in files)
@@ -661,12 +762,11 @@ public class MainMenuManager : MonoBehaviour
             Image img = btnObj.transform.Find("Image")?.GetComponent<Image>();
             if (img != null) img.sprite = sprite;
 
-            // 点击删除
             string fileName = file;
             btn.onClick.AddListener(() =>
             {
                 GameDataManager.RemoveUploadedImage(fileName);
-                PopulateUploadManagePanel(); // 刷新列表
+                PopulateUploadManagePanel();
             });
 
             Text label = btnObj.GetComponentInChildren<Text>();
@@ -683,9 +783,17 @@ public class MainMenuManager : MonoBehaviour
             ProcessUploadedImage(path);
         }
 #else
-        // 移动端需要 NativeGallery 插件，请自行导入
-        // NativeGallery.Permission permission = NativeGallery.GetImageFromGallery((path) => { if (path != null) ProcessUploadedImage(path); }, "选择图片", "image/*");
-        Debug.LogWarning("移动端请导入 NativeGallery 插件以启用相册选择");
+        NativeGallery.GetImageFromGallery((path) =>
+        {
+            if (path != null)
+            {
+                ProcessUploadedImage(path);
+            }
+            else
+            {
+                Debug.Log("用户取消选择或出错");
+            }
+        }, "选择图片", "image/*");
 #endif
     }
 
@@ -704,12 +812,347 @@ public class MainMenuManager : MonoBehaviour
             Debug.Log("上传成功: " + fileName);
 
             if (categoryScrollView.activeSelf) GenerateCategoryButtons();
-            PopulateUploadManagePanel(); // 刷新管理面板
+            PopulateUploadManagePanel();
         }
         catch (Exception e)
         {
             Debug.LogError("上传图片失败: " + e.Message);
         }
+    }
+
+    // ==================== 局域网分享（手动连接、多选下载） ====================
+
+    void OnShareButtonClicked()
+    {
+        // 启动分享，等待客户端连接
+        LANShareManager.Instance.StartSharing();
+        shareStatusText.text = "等待客户端连接...";
+        StartCoroutine(WaitForClientConnection());
+    }
+
+    IEnumerator WaitForClientConnection()
+    {
+        while (!LANShareManager.Instance.ClientConnected)
+        {
+            yield return null;
+        }
+        shareStatusText.text = "连接成功";
+        OpenShareSelectPanel();
+    }
+
+    void OnReceiveButtonClicked()
+    {
+        ShowPanel(deviceListPanel);
+        StartDiscovery();
+    }
+
+    void OpenShareSelectPanel()
+    {
+        shareSelectedFiles.Clear();
+        PopulateShareSelectPanel();
+        ShowPanel(shareSelectPanel);
+    }
+
+    void PopulateShareSelectPanel()
+    {
+        foreach (Transform child in shareSelectContent) Destroy(child.gameObject);
+
+        GridLayoutGroup grid = shareSelectContent.GetComponent<GridLayoutGroup>();
+        if (grid == null) grid = shareSelectContent.gameObject.AddComponent<GridLayoutGroup>();
+        grid.cellSize = new Vector2(150, 150);
+        grid.spacing = new Vector2(20, 20);
+        grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        grid.constraintCount = 3;
+        grid.childAlignment = TextAnchor.UpperCenter;
+
+        List<string> files = GameDataManager.GetUploadedImages();
+        foreach (string file in files)
+        {
+            string path = GameDataManager.GetUploadedImagePath(file);
+            if (!File.Exists(path)) continue;
+
+            byte[] bytes = File.ReadAllBytes(path);
+            Texture2D tex = new Texture2D(2, 2);
+            tex.LoadImage(bytes);
+            Sprite sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+
+            GameObject btnObj = Instantiate(imageButtonPrefab, shareSelectContent);
+            Button btn = btnObj.GetComponent<Button>();
+            Image img = btnObj.transform.Find("Image")?.GetComponent<Image>();
+            if (img != null) img.sprite = sprite;
+
+            string fileName = file;
+            btn.onClick.AddListener(() =>
+            {
+                if (shareSelectedFiles.Contains(fileName))
+                {
+                    shareSelectedFiles.Remove(fileName);
+                    img.color = Color.white;
+                }
+                else
+                {
+                    shareSelectedFiles.Add(fileName);
+                    img.color = Color.green;
+                }
+            });
+        }
+    }
+
+    void StartSharingSelectedFiles()
+    {
+        if (shareSelectedFiles.Count == 0)
+        {
+            ShowConfirm("请至少选择一张图片", null);
+            return;
+        }
+
+        LANShareManager.Instance.SetSharedFiles(shareSelectedFiles);
+        LANShareManager.Instance.NotifyClientsReady();   // 发送就绪广播
+        shareSelectPanel.SetActive(false);
+        shareStatusText.text = "已发送，等待客户端下载...";
+
+        // 返回基础面板（如个人面板）
+        ShowPanel(currentBasePanel ?? profilePanel);
+    }
+
+    void StartDiscovery()
+    {
+        if (deviceListContent == null)
+        {
+            Debug.LogError("deviceListContent 未赋值！");
+            return;
+        }
+
+        foreach (Transform child in deviceListContent) Destroy(child.gameObject);
+        discoveredDevices.Clear();
+
+        // 使用 VerticalLayoutGroup 排列设备按钮（避免与已有布局冲突）
+        VerticalLayoutGroup layout = deviceListContent.GetComponent<VerticalLayoutGroup>();
+        if (layout == null)
+        {
+            LayoutGroup existing = deviceListContent.GetComponent<LayoutGroup>();
+            if (existing != null) Destroy(existing);
+            layout = deviceListContent.gameObject.AddComponent<VerticalLayoutGroup>();
+        }
+
+        layout.spacing = 20f;
+        layout.childAlignment = TextAnchor.UpperCenter;
+        layout.childControlWidth = false;
+        layout.childControlHeight = false;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
+
+        LANShareManager.Instance.StartDiscovery((deviceName, ip, port, isReady) =>
+        {
+            if (isReady)
+            {
+
+                //已经连接且 IP 匹配，立即请求列表
+                if (connectedServerIP == ip)
+                {
+                    Debug.Log("收到就绪广播且IP匹配，请求图片列表");
+                    RequestRemoteImageList();
+                }
+                else
+                {
+                    // 未连接或IP不匹配，仅更新设备状态
+                    string entry = $"{deviceName}|{ip}|{port}";
+                    if (!discoveredDevices.Contains(entry))
+                    {
+                        discoveredDevices.Add(entry);
+                        AddDeviceButton(deviceName, ip, port, true);
+                    }
+                }
+            }
+            else
+            {
+                // 普通广播：添加到设备列表
+                string entry = $"{deviceName}|{ip}|{port}";
+                if (!discoveredDevices.Contains(entry))
+                {
+                    discoveredDevices.Add(entry);
+                    AddDeviceButton(deviceName, ip, port, false);
+                }
+            }
+        });
+    }
+
+    void RequestRemoteImageList()
+    {
+        LANShareManager.Instance.DownloadImageList((list) =>
+        {
+            remoteImageFiles = list;
+            selectedRemoteIndices.Clear();
+            PopulateRemoteImages();
+            remoteStatusText.text = $"共 {list.Count} 张图片，可多选下载";
+        });
+    }
+
+    void AddDeviceButton(string deviceName, string ip, int port, bool isReady)
+    {
+        GameObject btnObj = Instantiate(deviceButtonPrefab, deviceListContent);
+        RectTransform rect = btnObj.GetComponent<RectTransform>();
+        if (rect != null) rect.sizeDelta = new Vector2(deviceButtonWidth, deviceButtonHeight);
+
+        Button btn = btnObj.GetComponent<Button>();
+        Text label = btnObj.GetComponentInChildren<Text>();
+        if (label != null)
+        {
+            string status = isReady ? "（可下载）" : "";
+            label.text = $"{deviceName} ({ip}){status}";
+            label.horizontalOverflow = HorizontalWrapMode.Wrap;
+        }
+
+        btn.onClick.AddListener(() =>
+        {
+            // 连接服务器，但不停止发现（以便接收就绪广播）
+            LANShareManager.Instance.ConnectToServer(ip, port);
+            if (!LANShareManager.Instance.ConnectedToServer)
+            {
+                remoteStatusText.text = "连接失败";
+                return;
+            }
+
+            connectedServerIP = ip;
+
+            deviceListPanel.SetActive(false);
+            remoteImagePanel.SetActive(true);
+            remoteStatusText.text = "已连接，等待对方分享...";
+        });
+    }
+
+    void PopulateRemoteImages()
+    {
+        foreach (Transform child in remoteImageContent) Destroy(child.gameObject);
+
+        // 设置 Content 的 RectTransform 锚点和轴心
+        remoteImageContent.anchorMin = new Vector2(0, 1);
+        remoteImageContent.anchorMax = new Vector2(1, 1);
+        remoteImageContent.pivot = new Vector2(0.5f, 1);
+        remoteImageContent.anchoredPosition = Vector2.zero;
+        remoteImageContent.sizeDelta = new Vector2(0, 0);
+
+        // 设置 GridLayoutGroup
+        GridLayoutGroup grid = remoteImageContent.GetComponent<GridLayoutGroup>();
+        if (grid == null) grid = remoteImageContent.gameObject.AddComponent<GridLayoutGroup>();
+        grid.cellSize = new Vector2(200, 200);
+        grid.spacing = new Vector2(20, 20);
+        grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        grid.constraintCount = 3;
+        grid.childAlignment = TextAnchor.UpperCenter;
+
+        // 设置 ContentSizeFitter
+        ContentSizeFitter fitter = remoteImageContent.GetComponent<ContentSizeFitter>();
+        if (fitter == null) fitter = remoteImageContent.gameObject.AddComponent<ContentSizeFitter>();
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+        // 生成按钮
+        for (int i = 0; i < remoteImageFiles.Count; i++)
+        {
+            string fileName = remoteImageFiles[i];
+            GameObject btnObj = Instantiate(remoteImageButtonPrefab, remoteImageContent);
+            Button btn = btnObj.GetComponent<Button>();
+            Image img = btnObj.transform.Find("Image")?.GetComponent<Image>();
+            Text label = btnObj.GetComponentInChildren<Text>();
+            if (label != null) label.text = fileName;
+            if (img != null) img.color = Color.white;
+
+            int index = i;
+            btn.onClick.AddListener(() => ToggleRemoteSelection(index, btnObj));
+        }
+
+        // 强制刷新布局
+        Canvas.ForceUpdateCanvases();
+        LayoutRebuilder.ForceRebuildLayoutImmediate(remoteImageContent);
+    }
+
+    void ToggleRemoteSelection(int index, GameObject btnObj)
+    {
+        if (selectedRemoteIndices.Contains(index))
+        {
+            selectedRemoteIndices.Remove(index);
+            btnObj.GetComponent<Image>().color = Color.white;
+        }
+        else
+        {
+            selectedRemoteIndices.Add(index);
+            btnObj.GetComponent<Image>().color = Color.green;
+        }
+    }
+
+    void DownloadSelectedImages()
+    {
+        if (selectedRemoteIndices.Count == 0)
+        {
+            remoteStatusText.text = "请先选择图片";
+            return;
+        }
+
+        remoteStatusText.text = "正在下载...";
+        int total = selectedRemoteIndices.Count;
+        int completed = 0;
+
+        foreach (int index in selectedRemoteIndices)
+        {
+            string fileName = remoteImageFiles[index];
+            LANShareManager.Instance.DownloadImageToShared(fileName, (path) =>
+            {
+                completed++;
+                remoteStatusText.text = $"正在下载 {completed}/{total} 张...";
+                if (completed >= total)
+                {
+                    remoteStatusText.text = "下载完成，图片已进入共享分类";
+                    if (sharedImagePanel.activeSelf) PopulateSharedImagePanel();
+                }
+            });
+        }
+    }
+
+    // ==================== 共享分类 ====================
+
+    void OnSharedCategoryClicked()
+    {
+        selectedCategory = GameDataManager.SharedCategory;
+        PopulateSharedImagePanel();
+        ShowPanel(sharedImagePanel);
+    }
+
+    void PopulateSharedImagePanel()
+    {
+        foreach (Transform child in sharedImageContent) Destroy(child.gameObject);
+
+        GridLayoutGroup grid = sharedImageContent.GetComponent<GridLayoutGroup>();
+        if (grid == null) grid = sharedImageContent.gameObject.AddComponent<GridLayoutGroup>();
+        grid.cellSize = new Vector2(200, 200);
+        grid.spacing = new Vector2(20, 20);
+        grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        grid.constraintCount = 3;
+        grid.childAlignment = TextAnchor.UpperCenter;
+
+        List<string> files = GameDataManager.GetSharedImages();
+        foreach (string file in files)
+        {
+            string path = GameDataManager.GetSharedImagePath(file);
+            if (!File.Exists(path)) continue;
+            byte[] bytes = File.ReadAllBytes(path);
+            Texture2D tex = new Texture2D(2, 2);
+            tex.LoadImage(bytes);
+            Sprite sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+
+            GameObject btnObj = Instantiate(imageButtonPrefab, sharedImageContent);
+            Button btn = btnObj.GetComponent<Button>();
+            Image img = btnObj.transform.Find("Image")?.GetComponent<Image>();
+            if (img != null) img.sprite = sprite;
+
+            string fileName = file;
+            btn.onClick.AddListener(() => OnSharedImageClicked(fileName));
+        }
+    }
+
+    void OnSharedImageClicked(string fileName)
+    {
+        selectedImageIndex = GameDataManager.GetSharedImages().IndexOf(fileName);
+        ShowPanel(difficultyPanel);
     }
 
     // ==================== 其他按钮事件 ====================
@@ -734,7 +1177,7 @@ public class MainMenuManager : MonoBehaviour
 
     void ShowRewardedAd(System.Action onSuccess, System.Action onFail)
     {
-        onSuccess?.Invoke(); // 模拟广告成功
+        onSuccess?.Invoke();
     }
 
     void OnDailyPuzzleClicked()
@@ -848,6 +1291,23 @@ public class MainMenuManager : MonoBehaviour
 
     void UpdateProfileUI()
     {
+        if (profileAvatarImage != null)
+        {
+            if (avatarSprites == null || avatarSprites.Length == 0)
+                avatarSprites = Resources.LoadAll<Sprite>("Art/HeadPicture");
+
+            int avatarIndex = GameDataManager.GetAvatarIndex();
+            if (avatarSprites != null && avatarSprites.Length > 0)
+            {
+                if (avatarIndex < 0 || avatarIndex >= avatarSprites.Length)
+                    avatarIndex = 0;
+                profileAvatarImage.sprite = avatarSprites[avatarIndex];
+            }
+            else
+            {
+                Debug.LogWarning("没有找到头像图片");
+            }
+        }
         if (profileNameText != null) profileNameText.text = GameDataManager.PlayerName;
         if (profileLevelText != null) profileLevelText.text = $"等级 {GameDataManager.Level}  {GameDataManager.Experience}/{GameDataManager.GetRequiredExperience(GameDataManager.Level)}";
         if (experienceSlider != null)
@@ -856,6 +1316,54 @@ public class MainMenuManager : MonoBehaviour
             experienceSlider.value = GameDataManager.Experience;
             experienceSlider.interactable = false;
         }
+    }
+
+    // ==================== 头像选择 ====================
+
+    void OpenAvatarSelectPanel()
+    {
+        foreach (Transform child in avatarScrollContent) Destroy(child.gameObject);
+
+        GridLayoutGroup grid = avatarScrollContent.GetComponent<GridLayoutGroup>();
+        if (grid == null) grid = avatarScrollContent.gameObject.AddComponent<GridLayoutGroup>();
+        grid.cellSize = new Vector2(150, 150);
+        grid.spacing = new Vector2(20, 20);
+        grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        grid.constraintCount = 3;
+        grid.childAlignment = TextAnchor.UpperCenter;
+
+        avatarSprites = Resources.LoadAll<Sprite>("Art/HeadPicture");
+        if (avatarSprites.Length == 0)
+        {
+            Debug.LogWarning("No avatars found in Art/HeadPicture");
+            return;
+        }
+
+        System.Array.Sort(avatarSprites, (a, b) => string.Compare(a.name, b.name));
+
+        for (int i = 0; i < avatarSprites.Length; i++)
+        {
+            GameObject btnObj = Instantiate(avatarButtonPrefab, avatarScrollContent);
+            Button btn = btnObj.GetComponent<Button>();
+            Image img = btnObj.transform.Find("Image")?.GetComponent<Image>();
+            if (img != null) img.sprite = avatarSprites[i];
+
+            int index = i;
+            btn.onClick.AddListener(() => OnAvatarClicked(index));
+        }
+
+        Canvas.ForceUpdateCanvases();
+        ScrollRect scrollRect = avatarSelectPanel.GetComponentInChildren<ScrollRect>();
+        if (scrollRect != null) scrollRect.verticalNormalizedPosition = 1f;
+
+        ShowPanel(avatarSelectPanel);
+    }
+
+    void OnAvatarClicked(int index)
+    {
+        GameDataManager.SetAvatarIndex(index);
+        UpdateProfileUI();
+        ShowPanel(profilePanel);
     }
 
     // ==================== 收藏面板 ====================
