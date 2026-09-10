@@ -16,8 +16,9 @@ public class GameManager : MonoBehaviour
 
     // ==================== UI 引用 ====================
     [Header("音效")]
-    public AudioClip victorySound;      // 胜利音效
-    public AudioClip dailyCompleteSound; // 每日拼图全部完成音效（可选）
+    public AudioClip victorySound;
+    public AudioClip dailyCompleteSound;
+
     [Header("UI References")]
     public Button favoriteButton;
     public Button nextImageButton;
@@ -52,16 +53,18 @@ public class GameManager : MonoBehaviour
     [Header("Puzzle Settings")]
     public float pieceSize = 100f;
     public float spacingFactor = 1f;
-    // GameManager.cs
+
+    // 对外暴露的属性，供 PuzzlePiece 访问
     public int LockedCount => lockedCount;
     public int TotalPieces => totalPieces;
+
     // ==================== 私有状态 ====================
 
     private bool isDailyPuzzle = false;
     private int currentImageIndex = -1;
     private string selectedCategory;
     private int selectedImageIndex = -1;
-    private int gridSize = 2; // 测试用，正式可改回6
+    private int gridSize = 2;
     private float timeRemaining;
     private bool isVictory = false;
 
@@ -130,7 +133,7 @@ public class GameManager : MonoBehaviour
                 return;
             }
 
-            dailyPuzzleCurrentIndex = 0; // 从第一张开始，或者可根据需要选择
+            dailyPuzzleCurrentIndex = 0;
             if (dailyPuzzleCurrentIndex >= images.Count) dailyPuzzleCurrentIndex = 0;
 
             string[] parts = images[dailyPuzzleCurrentIndex].Split('_');
@@ -185,13 +188,15 @@ public class GameManager : MonoBehaviour
         activePieces.Clear();
         lockedCount = 0;
 
-        // 加载图片
+        // ==================== 加载图片 ====================
         if (selectedCategory == GameDataManager.UploadCategory)
         {
+            // 上传分类：从 Uploads 文件夹加载
             List<string> uploadFiles = GameDataManager.GetUploadedImages();
             if (selectedImageIndex < 0 || selectedImageIndex >= uploadFiles.Count)
             {
                 Debug.LogError("上传图片索引无效");
+                BackToMenu();
                 return;
             }
             string fileName = uploadFiles[selectedImageIndex];
@@ -199,6 +204,31 @@ public class GameManager : MonoBehaviour
             if (!File.Exists(path))
             {
                 Debug.LogError("上传图片文件不存在: " + path);
+                BackToMenu();
+                return;
+            }
+            byte[] bytes = File.ReadAllBytes(path);
+            Texture2D tex = new Texture2D(2, 2);
+            tex.LoadImage(bytes);
+            chosenSprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+            currentImageIndex = selectedImageIndex;
+        }
+        else if (selectedCategory == GameDataManager.SharedCategory)
+        {
+            // 共享分类：从 Shared 文件夹加载
+            List<string> sharedFiles = GameDataManager.GetSharedImages();
+            if (selectedImageIndex < 0 || selectedImageIndex >= sharedFiles.Count)
+            {
+                Debug.LogError("共享图片索引无效");
+                BackToMenu();
+                return;
+            }
+            string fileName = sharedFiles[selectedImageIndex];
+            string path = GameDataManager.GetSharedImagePath(fileName);
+            if (!File.Exists(path))
+            {
+                Debug.LogError("共享图片文件不存在: " + path);
+                BackToMenu();
                 return;
             }
             byte[] bytes = File.ReadAllBytes(path);
@@ -209,13 +239,15 @@ public class GameManager : MonoBehaviour
         }
         else
         {
+            // 普通分类：从 AssetBundle 加载
             allSprites = AssetBundleManager.Instance.GetCategorySprites(selectedCategory);
             if (allSprites.Length == 0)
             {
                 Debug.LogError("没有找到图片分类: " + selectedCategory);
+                BackToMenu();
                 return;
             }
-         
+
             System.Array.Sort(allSprites, (a, b) => string.Compare(a.name, b.name));
 
             if (selectedImageIndex >= 0 && selectedImageIndex < allSprites.Length)
@@ -232,10 +264,14 @@ public class GameManager : MonoBehaviour
         }
 
         Texture2D texture = chosenSprite.texture;
-        // 上传分类不支持收藏，禁用按钮
-        if (favoriteButton != null)
-            favoriteButton.interactable = (selectedCategory != GameDataManager.UploadCategory);
 
+        // 上传分类和共享分类不支持收藏，禁用按钮
+        if (favoriteButton != null)
+        {
+            bool canFavorite = (selectedCategory != GameDataManager.UploadCategory &&
+                                selectedCategory != GameDataManager.SharedCategory);
+            favoriteButton.interactable = canFavorite;
+        }
         UpdateFavoriteButtonColor();
 
         rows = gridSize;
@@ -447,9 +483,9 @@ public class GameManager : MonoBehaviour
         if (lockedCount >= totalPieces)
         {
             isVictory = true;
-            // 播放胜利音效
             if (victorySound != null && SoundManager.Instance != null)
                 SoundManager.Instance.PlayPuzzleSound(victorySound);
+
             if (isDailyPuzzle)
             {
                 GameDataManager.SetDailyPuzzleImageCompleted(dailyPuzzleCurrentIndex, true);
@@ -459,7 +495,6 @@ public class GameManager : MonoBehaviour
 
                 if (completedCount >= GameDataManager.DailyPuzzleCount)
                 {
-                    // 每日拼图全部完成
                     if (dailyCompleteSound != null && SoundManager.Instance != null)
                         SoundManager.Instance.PlayPuzzleSound(dailyCompleteSound);
                     int dailyReward = 50;
@@ -583,25 +618,97 @@ public class GameManager : MonoBehaviour
             return;
         }
 
+        // ===== 上传分类 =====
+        if (selectedCategory == GameDataManager.UploadCategory)
+        {
+            List<string> uploadFiles = GameDataManager.GetUploadedImages();
+            if (uploadFiles.Count == 0) return;
+
+            if (GameDataManager.Stamina < GameDataManager.PuzzleStaminaCost)
+            {
+                ShowConfirm("体力不足，无法切换图片", null);
+                return;
+            }
+
+            if (currentImageIndex >= uploadFiles.Count - 1)
+            {
+                ShowConfirm("已经到最后一张，是否直接到第一张？", () =>
+                {
+                    selectedImageIndex = 0;
+                    StartNewGame();
+                });
+            }
+            else
+            {
+                selectedImageIndex = currentImageIndex + 1;
+                StartNewGame();
+            }
+            return;
+        }
+
+        // ===== 共享分类 =====
+        if (selectedCategory == GameDataManager.SharedCategory)
+        {
+            List<string> sharedFiles = GameDataManager.GetSharedImages();
+            if (sharedFiles.Count == 0) return;
+
+            if (GameDataManager.Stamina < GameDataManager.PuzzleStaminaCost)
+            {
+                ShowConfirm("体力不足，无法切换图片", null);
+                return;
+            }
+
+            if (currentImageIndex >= sharedFiles.Count - 1)
+            {
+                ShowConfirm("已经到最后一张，是否直接到第一张？", () =>
+                {
+                    selectedImageIndex = 0;
+                    StartNewGame();
+                });
+            }
+            else
+            {
+                selectedImageIndex = currentImageIndex + 1;
+                StartNewGame();
+            }
+            return;
+        }
+
+        // ===== 普通分类 =====
         if (allSprites == null || allSprites.Length == 0) return;
         if (GameDataManager.Stamina < GameDataManager.PuzzleStaminaCost)
         {
             ShowConfirm("体力不足，无法切换图片", null);
             return;
         }
-        if (currentImageIndex == allSprites.Length - 1)
+        // 从当前图片往后找第一张已解锁的图片
+        int next = currentImageIndex;
+        int found = -1;
+        for (int i = 1; i <= allSprites.Length; i++)
         {
-            ShowConfirm("已经到最后一章，是否直接到第一张？", () =>
+            int idx = (currentImageIndex + i) % allSprites.Length;
+            if (GameDataManager.IsImageUnlocked(selectedCategory, idx))
             {
-                selectedImageIndex = 0;
-                StartNewGame();
-            });
+                found = idx;
+                break;
+            }
         }
-        else
+
+        if (found == -1)
         {
-            selectedImageIndex = currentImageIndex + 1;
-            StartNewGame();
+            ShowConfirm("没有其他已解锁的图片，请先解锁更多图片。", null);
+            return;
         }
+
+        // 如果绕了一圈回到当前图片，说明只有当前这一张已解锁
+        if (found == currentImageIndex)
+        {
+            ShowConfirm("已经是最后一张已解锁的图片", null);
+            return;
+        }
+
+        selectedImageIndex = found;
+        StartNewGame();
     }
 
     public void PrevImage()
@@ -615,6 +722,75 @@ public class GameManager : MonoBehaviour
             return;
         }
 
+        // ===== 上传分类 =====
+        if (selectedCategory == GameDataManager.UploadCategory)
+        {
+            List<string> uploadFiles = GameDataManager.GetUploadedImages();
+            if (uploadFiles.Count == 0) return;
+
+            if (GameDataManager.Stamina < GameDataManager.PuzzleStaminaCost)
+            {
+                ShowConfirm("体力不足，无法切换图片", null);
+                return;
+            }
+
+            // 从当前图片往前找第一张已解锁的图片
+            int found = -1;
+            for (int i = 1; i <= allSprites.Length; i++)
+            {
+                int idx = (currentImageIndex - i + allSprites.Length) % allSprites.Length;
+                if (GameDataManager.IsImageUnlocked(selectedCategory, idx))
+                {
+                    found = idx;
+                    break;
+                }
+            }
+
+            if (found == -1)
+            {
+                ShowConfirm("没有其他已解锁的图片，请先解锁更多图片。", null);
+                return;
+            }
+
+            if (found == currentImageIndex)
+            {
+                ShowConfirm("已经是第一张已解锁的图片", null);
+                return;
+            }
+
+            selectedImageIndex = found;
+            StartNewGame();
+        }
+
+        // ===== 共享分类 =====
+        if (selectedCategory == GameDataManager.SharedCategory)
+        {
+            List<string> sharedFiles = GameDataManager.GetSharedImages();
+            if (sharedFiles.Count == 0) return;
+
+            if (GameDataManager.Stamina < GameDataManager.PuzzleStaminaCost)
+            {
+                ShowConfirm("体力不足，无法切换图片", null);
+                return;
+            }
+
+            if (currentImageIndex <= 0)
+            {
+                ShowConfirm("已经到第一张，是否直接到最后一张？", () =>
+                {
+                    selectedImageIndex = sharedFiles.Count - 1;
+                    StartNewGame();
+                });
+            }
+            else
+            {
+                selectedImageIndex = currentImageIndex - 1;
+                StartNewGame();
+            }
+            return;
+        }
+
+        // ===== 普通分类 =====
         if (allSprites == null || allSprites.Length == 0) return;
         if (GameDataManager.Stamina < GameDataManager.PuzzleStaminaCost)
         {
@@ -670,8 +846,9 @@ public class GameManager : MonoBehaviour
         Image buttonImage = favoriteButton.GetComponent<Image>();
         if (buttonImage == null) return;
 
-        // 上传分类：禁用收藏并保持白色
-        if (selectedCategory == GameDataManager.UploadCategory)
+        // 上传分类和共享分类：禁用收藏并保持白色
+        if (selectedCategory == GameDataManager.UploadCategory ||
+            selectedCategory == GameDataManager.SharedCategory)
         {
             favoriteButton.interactable = false;
             buttonImage.color = Color.white;
@@ -687,8 +864,9 @@ public class GameManager : MonoBehaviour
 
     void ToggleFavorite()
     {
-        // 上传分类不支持收藏，直接返回
-        if (selectedCategory == GameDataManager.UploadCategory) return;
+        // 上传和共享分类不支持收藏
+        if (selectedCategory == GameDataManager.UploadCategory ||
+            selectedCategory == GameDataManager.SharedCategory) return;
         if (selectedCategory == null || currentImageIndex < 0) return;
         if (GameDataManager.IsFavorite(selectedCategory, currentImageIndex))
             GameDataManager.RemoveFavorite(selectedCategory, currentImageIndex);
