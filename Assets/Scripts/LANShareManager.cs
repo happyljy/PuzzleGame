@@ -14,30 +14,66 @@ using UnityEngine;
 /// </summary>
 public class LANShareManager : MonoBehaviour
 {
+    #region 单例
+
     public static LANShareManager Instance { get; private set; }
+
+    #endregion
+
+    #region 常量
 
     private const int DiscoveryPort = 8888;          // UDP 广播端口
     private const int FileTransferPort = 5555;       // TCP 文件传输端口
+    private const float ConnectTimeoutSeconds = 3f;  // 连接超时时间
 
-    private UdpClient broadcastUdpClient;             // 服务端广播专用
-    private UdpClient discoveryUdpClient;             // 客户端监听专用
+    #endregion
 
-    private bool isDiscovering = false;
-    private bool isSharing = false;
-    private TcpListener tcpListener;
-    private bool isServerRunning = false;
-    private TcpClient connectedClient;                // 客户端主动连接的 TcpClient
-    private List<string> sharedFiles = new List<string>(); // 服务端选择要分享的文件名列表
-    private string deviceName;
-    private volatile bool clientConnected = false;    // 服务端：是否有客户端连接
+    #region 对外属性与事件
+
+    /// <summary>服务端：是否有客户端已连接。</summary>
     public bool ClientConnected => clientConnected;
+
+    /// <summary>客户端：是否已连接到服务端。</summary>
     public bool ConnectedToServer => connectedClient != null && connectedClient.Connected;
+
+    /// <summary>客户端：最近一次连接的服务器 IP。</summary>
     public string LastConnectedServerIP { get; set; }
+
+    /// <summary>分享停止事件（服务端/客户端均可订阅）。</summary>
     public event Action OnSharingStopped;
 
+    #endregion
+
+    #region 私有字段
+
+    // UDP 客户端（服务端广播 / 客户端监听）
+    private UdpClient broadcastUdpClient;
+    private UdpClient discoveryUdpClient;
+
+    // 状态标记
+    private bool isDiscovering = false;
+    private bool isSharing = false;
+    private bool isServerRunning = false;
+
+    // TCP 服务器与客户端
+    private TcpListener tcpListener;
+    private TcpClient connectedClient;
+
+    // 分享数据
+    private List<string> sharedFiles = new List<string>();
+    private string deviceName;
+
+    // 客户端连接标记（volatile 保证跨线程可见性）
+    private volatile bool clientConnected = false;
+
+    // 自动停止分享协程
     private Coroutine autoStopCoroutine;
 
-    void Awake()
+    #endregion
+
+    #region Unity 生命周期
+
+    private void Awake()
     {
         if (Instance != null && Instance != this)
         {
@@ -49,7 +85,7 @@ public class LANShareManager : MonoBehaviour
         deviceName = SystemInfo.deviceName;
     }
 
-    void OnDestroy()
+    private void OnDestroy()
     {
         StopSharing();
         StopDiscovery();
@@ -57,7 +93,9 @@ public class LANShareManager : MonoBehaviour
         StopFileServer();
     }
 
-    // ==================== 分享方（服务器） ====================
+    #endregion
+
+    #region 分享方（服务器）
 
     /// <summary>
     /// 启动分享：开始 TCP 服务器并广播常规消息，等待客户端连接。
@@ -66,6 +104,7 @@ public class LANShareManager : MonoBehaviour
     {
         if (isSharing) return;
         isSharing = true;
+
         StartFileServer();
 
         broadcastUdpClient = new UdpClient();
@@ -80,77 +119,84 @@ public class LANShareManager : MonoBehaviour
         Debug.Log($"广播地址: {GetBroadcastAddress()}");
     }
 
-    void BroadcastPresence()
+    /// <summary>
+    /// 广播常规发现消息（未就绪）。
+    /// </summary>
+    private void BroadcastPresence()
     {
         if (broadcastUdpClient == null) return;
+
         string message = $"PUZZLE_SHARE|{deviceName}|{GetLocalIPAddress()}|{FileTransferPort}";
         byte[] data = Encoding.UTF8.GetBytes(message);
 
         // 同时发送到子网广播和受限广播，提高被发现概率
-        try
-        {
-            IPEndPoint subnetBroadcast = new IPEndPoint(IPAddress.Parse(GetBroadcastAddress()), DiscoveryPort);
-            broadcastUdpClient.Send(data, data.Length, subnetBroadcast);
-        }
-        catch (Exception e) { Debug.LogWarning($"子网广播发送失败: {e.Message}"); }
-
-        try
-        {
-            IPEndPoint limitedBroadcast = new IPEndPoint(IPAddress.Broadcast, DiscoveryPort);
-            broadcastUdpClient.Send(data, data.Length, limitedBroadcast);
-        }
-        catch (Exception e) { Debug.LogWarning($"受限广播发送失败: {e.Message}"); }
+        SendBroadcast(data, "子网广播");
+        SendBroadcast(data, "受限广播", true);
 
         Debug.Log($"广播: {message}");
     }
 
     /// <summary>
-    /// 发送就绪广播（客户端收到后可以识别设备已就绪，但连接仍由客户端手动触发）
+    /// 发送就绪广播（客户端收到后可以识别设备已就绪，但连接仍由客户端手动触发）。
     /// </summary>
     public void NotifyClientsReady()
     {
         if (!isSharing || broadcastUdpClient == null) return;
+
         string message = $"PUZZLE_SHARE_READY|{deviceName}|{GetLocalIPAddress()}|{FileTransferPort}";
         byte[] data = Encoding.UTF8.GetBytes(message);
 
-        try
-        {
-            IPEndPoint subnetBroadcast = new IPEndPoint(IPAddress.Parse(GetBroadcastAddress()), DiscoveryPort);
-            broadcastUdpClient.Send(data, data.Length, subnetBroadcast);
-        }
-        catch (Exception e) { Debug.LogWarning($"就绪广播(子网)发送失败: {e.Message}"); }
-
-        try
-        {
-            IPEndPoint limitedBroadcast = new IPEndPoint(IPAddress.Broadcast, DiscoveryPort);
-            broadcastUdpClient.Send(data, data.Length, limitedBroadcast);
-        }
-        catch (Exception e) { Debug.LogWarning($"就绪广播(受限)发送失败: {e.Message}"); }
+        SendBroadcast(data, "就绪广播(子网)");
+        SendBroadcast(data, "就绪广播(受限)", true);
 
         Debug.Log($"发送就绪广播: {message}");
     }
 
     /// <summary>
-    /// 停止广播（只停止广播，不停止TCP服务器）
+    /// 发送广播数据到子网广播或受限广播地址。
+    /// </summary>
+    /// <param name="data">要发送的数据</param>
+    /// <param name="logTag">日志标签</param>
+    /// <param name="useLimitedBroadcast">是否使用受限广播地址（255.255.255.255）</param>
+    private void SendBroadcast(byte[] data, string logTag, bool useLimitedBroadcast = false)
+    {
+        try
+        {
+            IPEndPoint ep = useLimitedBroadcast
+                ? new IPEndPoint(IPAddress.Broadcast, DiscoveryPort)
+                : new IPEndPoint(IPAddress.Parse(GetBroadcastAddress()), DiscoveryPort);
+            broadcastUdpClient.Send(data, data.Length, ep);
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning($"{logTag}发送失败: {e.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 停止广播（只停止广播，不停止 TCP 服务器）。
     /// </summary>
     public void StopBroadcast()
     {
         CancelInvoke(nameof(BroadcastPresence));
+
         if (broadcastUdpClient != null)
         {
             broadcastUdpClient.Close();
             broadcastUdpClient = null;
         }
+
         if (autoStopCoroutine != null)
         {
             StopCoroutine(autoStopCoroutine);
             autoStopCoroutine = null;
         }
+
         Debug.Log("广播已停止");
     }
 
     /// <summary>
-    /// 停止分享（停止广播和TCP服务器）
+    /// 停止分享（停止广播和 TCP 服务器）。
     /// </summary>
     public void StopSharing()
     {
@@ -161,7 +207,10 @@ public class LANShareManager : MonoBehaviour
         OnSharingStopped?.Invoke();
     }
 
-    IEnumerator AutoStopSharingAfterTimeout(float timeout)
+    /// <summary>
+    /// 60 秒内没有客户端连接则自动停止分享。
+    /// </summary>
+    private IEnumerator AutoStopSharingAfterTimeout(float timeout)
     {
         yield return new WaitForSeconds(timeout);
         if (!clientConnected)
@@ -171,13 +220,22 @@ public class LANShareManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 设置要分享的文件列表（由 UI 调用）。
+    /// </summary>
     public void SetSharedFiles(List<string> files)
     {
         sharedFiles = files;
     }
 
-    // ==================== 发现方（客户端） ====================
+    #endregion
 
+    #region 发现方（客户端）
+
+    /// <summary>
+    /// 开始发现设备。
+    /// </summary>
+    /// <param name="onDeviceFound">回调参数：设备名, IP, 端口, 是否就绪广播</param>
     public void StartDiscovery(Action<string, string, int, bool> onDeviceFound)
     {
         if (isDiscovering) return;
@@ -188,7 +246,10 @@ public class LANShareManager : MonoBehaviour
         Debug.Log($"开始发现设备，监听端口 {DiscoveryPort}");
     }
 
-    void OnDiscoveryReceive(IAsyncResult ar)
+    /// <summary>
+    /// 收到 UDP 广播后的回调。
+    /// </summary>
+    private void OnDiscoveryReceive(IAsyncResult ar)
     {
         object[] args = (object[])ar.AsyncState;
         UdpClient client = (UdpClient)args[0];
@@ -203,22 +264,21 @@ public class LANShareManager : MonoBehaviour
         {
             string[] parts = message.Split('|');
             if (parts.Length == 4)
-            {
                 callback?.Invoke(parts[1], parts[2], int.Parse(parts[3]), true);
-            }
         }
         else if (message.StartsWith("PUZZLE_SHARE|"))
         {
             string[] parts = message.Split('|');
             if (parts.Length == 4)
-            {
                 callback?.Invoke(parts[1], parts[2], int.Parse(parts[3]), false);
-            }
         }
 
         try { client.BeginReceive(OnDiscoveryReceive, ar); } catch { }
     }
 
+    /// <summary>
+    /// 停止发现设备。
+    /// </summary>
     public void StopDiscovery()
     {
         isDiscovering = false;
@@ -229,9 +289,14 @@ public class LANShareManager : MonoBehaviour
         }
     }
 
-    // ==================== TCP 服务器 ====================
+    #endregion
 
-    void StartFileServer()
+    #region TCP 服务器
+
+    /// <summary>
+    /// 启动 TCP 服务器，开始接受客户端连接。
+    /// </summary>
+    private void StartFileServer()
     {
         tcpListener = new TcpListener(IPAddress.Any, FileTransferPort);
         tcpListener.Start();
@@ -239,26 +304,35 @@ public class LANShareManager : MonoBehaviour
         tcpListener.BeginAcceptTcpClient(OnClientConnected, null);
     }
 
-    void OnClientConnected(IAsyncResult ar)
+    /// <summary>
+    /// 客户端连接成功后的回调。
+    /// </summary>
+    private void OnClientConnected(IAsyncResult ar)
     {
         if (!isServerRunning) return;
-        TcpClient client = tcpListener.EndAcceptTcpClient(ar);
 
+        TcpClient client = tcpListener.EndAcceptTcpClient(ar);
         clientConnected = true;
 
+        // 有客户端连接后取消自动停止
         if (autoStopCoroutine != null)
         {
             StopCoroutine(autoStopCoroutine);
             autoStopCoroutine = null;
         }
 
+        // 在后台线程处理该客户端的请求
         List<string> filesToShare = sharedFiles.Count > 0 ? sharedFiles : GameDataManager.GetUploadedImages();
         System.Threading.Tasks.Task.Run(() => HandleClient(client, filesToShare));
 
+        // 继续接受下一个客户端
         tcpListener.BeginAcceptTcpClient(OnClientConnected, null);
     }
 
-    void HandleClient(TcpClient client, List<string> files)
+    /// <summary>
+    /// 处理客户端请求（LIST 获取列表 / GET 下载文件）。
+    /// </summary>
+    private void HandleClient(TcpClient client, List<string> files)
     {
         try
         {
@@ -280,24 +354,7 @@ public class LANShareManager : MonoBehaviour
                 }
                 else if (request.StartsWith("GET|"))
                 {
-                    string fileName = request.Substring(4);
-                    string filePath = Path.Combine(Application.persistentDataPath, "Uploads", fileName);
-
-                    if (!File.Exists(filePath))
-                    {
-                        stream.Write(BitConverter.GetBytes(0), 0, 4);
-                        stream.Flush();
-                        Debug.LogWarning($"请求的文件不存在: {filePath}");
-                        continue;
-                    }
-
-                    byte[] fileData = File.ReadAllBytes(filePath);
-                    byte[] lengthBytes = BitConverter.GetBytes(fileData.Length);
-                    stream.Write(lengthBytes, 0, 4);
-                    stream.Write(fileData, 0, fileData.Length);
-                    stream.Flush();
-
-                    Debug.Log($"发送图片: {fileName} ({fileData.Length} bytes)");
+                    HandleFileRequest(stream, request.Substring(4));
                 }
             }
         }
@@ -311,7 +368,34 @@ public class LANShareManager : MonoBehaviour
         }
     }
 
-    void StopFileServer()
+    /// <summary>
+    /// 处理单个文件下载请求。
+    /// </summary>
+    private void HandleFileRequest(NetworkStream stream, string fileName)
+    {
+        string filePath = Path.Combine(Application.persistentDataPath, "Uploads", fileName);
+
+        if (!File.Exists(filePath))
+        {
+            stream.Write(BitConverter.GetBytes(0), 0, 4);
+            stream.Flush();
+            Debug.LogWarning($"请求的文件不存在: {filePath}");
+            return;
+        }
+
+        byte[] fileData = File.ReadAllBytes(filePath);
+        byte[] lengthBytes = BitConverter.GetBytes(fileData.Length);
+        stream.Write(lengthBytes, 0, 4);
+        stream.Write(fileData, 0, fileData.Length);
+        stream.Flush();
+
+        Debug.Log($"发送图片: {fileName} ({fileData.Length} bytes)");
+    }
+
+    /// <summary>
+    /// 停止 TCP 服务器。
+    /// </summary>
+    private void StopFileServer()
     {
         isServerRunning = false;
         if (tcpListener != null)
@@ -321,8 +405,13 @@ public class LANShareManager : MonoBehaviour
         }
     }
 
-    // ==================== TCP 客户端 ====================
+    #endregion
 
+    #region TCP 客户端
+
+    /// <summary>
+    /// 连接到服务端（带 3 秒超时）。
+    /// </summary>
     public void ConnectToServer(string serverIP, int port)
     {
         if (connectedClient != null && connectedClient.Connected) return;
@@ -331,13 +420,15 @@ public class LANShareManager : MonoBehaviour
         try
         {
             IAsyncResult result = client.BeginConnect(serverIP, port, null, null);
-            bool success = result.AsyncWaitHandle.WaitOne(3000); // 最多等待3秒
+            bool success = result.AsyncWaitHandle.WaitOne(3000); // 最多等待 3 秒
+
             if (!success)
             {
                 client.Close();
                 Debug.LogError($"连接超时: {serverIP}:{port}");
                 return;
             }
+
             client.EndConnect(result);
             connectedClient = client;
             LastConnectedServerIP = serverIP;
@@ -350,6 +441,9 @@ public class LANShareManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 断开与服务端的连接。
+    /// </summary>
     public void DisconnectFromServer()
     {
         if (connectedClient != null)
@@ -361,9 +455,12 @@ public class LANShareManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 请求服务端的图片列表。
+    /// </summary>
     public void DownloadImageList(Action<List<string>> onListReceived)
     {
-        if (connectedClient == null || !connectedClient.Connected)
+        if (!ConnectedToServer)
         {
             Debug.LogError("未连接到服务器");
             return;
@@ -395,19 +492,28 @@ public class LANShareManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 下载单个图片（保存到 Uploads 文件夹）。
+    /// </summary>
     public void DownloadImage(string fileName, Action<string> onDownloaded)
     {
         DownloadImageInternal(fileName, false, onDownloaded);
     }
 
+    /// <summary>
+    /// 下载单个图片（保存到 Shared 文件夹）。
+    /// </summary>
     public void DownloadImageToShared(string fileName, Action<string> onDownloaded)
     {
         DownloadImageInternal(fileName, true, onDownloaded);
     }
 
+    /// <summary>
+    /// 下载图片的内部实现，根据 saveToShared 决定保存目录。
+    /// </summary>
     private void DownloadImageInternal(string fileName, bool saveToShared, Action<string> onDownloaded)
     {
-        if (connectedClient == null || !connectedClient.Connected)
+        if (!ConnectedToServer)
         {
             Debug.LogError("未连接到服务器");
             return;
@@ -419,6 +525,7 @@ public class LANShareManager : MonoBehaviour
             StreamWriter writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
             writer.WriteLine($"GET|{fileName}");
 
+            // 读取文件长度（前 4 字节）
             byte[] lengthBytes = new byte[4];
             int bytesRead = 0;
             while (bytesRead < 4)
@@ -436,7 +543,10 @@ public class LANShareManager : MonoBehaviour
                 return;
             }
 
-            string targetDir = saveToShared ? Path.Combine(Application.persistentDataPath, "Shared") : Path.Combine(Application.persistentDataPath, "Uploads");
+            // 保存文件
+            string targetDir = saveToShared
+                ? Path.Combine(Application.persistentDataPath, "Shared")
+                : Path.Combine(Application.persistentDataPath, "Uploads");
             Directory.CreateDirectory(targetDir);
             string destPath = Path.Combine(targetDir, fileName);
 
@@ -455,6 +565,7 @@ public class LANShareManager : MonoBehaviour
                 }
             }
 
+            // 记录到数据管理器
             if (saveToShared)
                 GameDataManager.AddSharedImage(fileName);
             else
@@ -469,12 +580,18 @@ public class LANShareManager : MonoBehaviour
         }
     }
 
-    // ==================== 工具 ====================
+    #endregion
 
-    string GetLocalIPAddress()
+    #region 工具方法
+
+    /// <summary>
+    /// 获取本机局域网 IP（过滤回环、自动配置、虚拟网卡地址）。
+    /// </summary>
+    private string GetLocalIPAddress()
     {
         string localIP = "";
         var host = Dns.GetHostEntry(Dns.GetHostName());
+
         foreach (var ip in host.AddressList)
         {
             if (ip.AddressFamily == AddressFamily.InterNetwork &&
@@ -490,7 +607,10 @@ public class LANShareManager : MonoBehaviour
         return localIP;
     }
 
-    string GetBroadcastAddress()
+    /// <summary>
+    /// 根据本机 IP 计算子网广播地址（例如 192.168.1.255）。
+    /// </summary>
+    private string GetBroadcastAddress()
     {
         string localIP = GetLocalIPAddress();
         if (string.IsNullOrEmpty(localIP)) return "255.255.255.255";
@@ -499,11 +619,21 @@ public class LANShareManager : MonoBehaviour
         return parts[0] + "." + parts[1] + "." + parts[2] + ".255";
     }
 
+    #endregion
+
+    #region 辅助数据结构
+
+    /// <summary>
+    /// 用于 JSON 序列化/反序列化的字符串列表包装类。
+    /// </summary>
     [Serializable]
     public class StringListWrapper
     {
         public List<string> items;
+
         public StringListWrapper() { }
         public StringListWrapper(List<string> items) { this.items = items; }
     }
+
+    #endregion
 }

@@ -7,71 +7,93 @@ using UnityEngine;
 /// 游戏数据管理器：负责所有持久化数据的读写，包括金币、经验、等级、收藏、
 /// 体力、每日拼图、分类和图片解锁状态、上传图片、共享图片、头像等。
 /// 所有数据通过 PlayerPrefs 存储，文件通过 Application.persistentDataPath 存储。
+/// 该类为静态类，无需挂载到场景中。
 /// </summary>
 public static class GameDataManager
 {
-    // ==================== 基础配置 ====================
+    #region 基础配置
 
-    // 分类列表（顺序需与主菜单按钮一致）
+    /// <summary>分类列表（顺序需与主菜单按钮一致）。</summary>
     public static string[] Categories = { "Kazimierz", "Kjerag", "RhodesIsland", "Ursus", "Victoria", "Yan" };
-    // 对应分类的价格，0 表示初始已解锁（当前所有分类免费）
-    public static int[] CategoryPrices = { 0, 0, 0 ,0,0,0};
 
-    // 图片解锁设置
-    public const int FreeImagesPerCategory = 5;   // 每个分类前5张图片免费
-    public const int ImagePrice = 100;            // 第6张及以后的图片价格（统一价格）
+    /// <summary>分类价格，0 表示初始已解锁（当前所有分类免费）。</summary>
+    public static int[] CategoryPrices = { 0, 0, 0, 0, 0, 0 };
 
-    // 特殊分类标识
-    public const string UploadCategory = "Upload";   // 上传图片的特殊分类
-    public const string SharedCategory = "Shared";   // 共享图片的特殊分类
+    /// <summary>每个分类前 5 张图片免费。</summary>
+    public const int FreeImagesPerCategory = 5;
 
-    // ==================== PlayerPrefs 键名常量 ====================
+    /// <summary>第 6 张及以后的图片统一价格。</summary>
+    public const int ImagePrice = 100;
 
-    private const string CoinsKey = "Coins";                          // 金币
-    private const string UnlockPrefix = "Unlock_";                    // 分类解锁前缀
-    private const string ImageUnlockPrefix = "ImageUnlock_";          // 图片解锁前缀
-    private const string PlayerNameKey = "PlayerName";                // 玩家名字
-    private const string LevelKey = "Level";                          // 等级
-    private const string ExperienceKey = "Experience";                // 经验值
-    private const string FavoritesKey = "Favorites";                  // 收藏列表
-    private const string RewardClaimedPrefix = "RewardClaimed_";      // 首通奖励标记前缀
+    /// <summary>上传图片的特殊分类标识。</summary>
+    public const string UploadCategory = "Upload";
+
+    /// <summary>共享图片的特殊分类标识。</summary>
+    public const string SharedCategory = "Shared";
+
+    #endregion
+
+    #region PlayerPrefs 键名常量
+
+    // 金币与解锁
+    private const string CoinsKey = "Coins";
+    private const string UnlockPrefix = "Unlock_";
+    private const string ImageUnlockPrefix = "ImageUnlock_";
+
+    // 玩家信息
+    private const string PlayerNameKey = "PlayerName";
+    private const string LevelKey = "Level";
+    private const string ExperienceKey = "Experience";
+    private const string FavoritesKey = "Favorites";
+    private const string RewardClaimedPrefix = "RewardClaimed_";
 
     // 体力系统
-    private const string StaminaKey = "Stamina";                       // 当前体力值
-    private const string LastStaminaTimeKey = "LastStaminaTime";       // 上次体力恢复时间戳
-    private const int BaseStamina = 100;                               // 初始体力上限
-    private const int StaminaIncreasePer5Levels = 50;                  // 每5级增加的上限
-    private const int StaminaRecoveryIntervalSeconds = 60;             // 每60秒恢复1点体力
-    private const int StaminaRecoveryAmount = 1;                       // 每次恢复量
-    public const int PuzzleStaminaCost = 10;                           // 每次拼图消耗体力
+    private const string StaminaKey = "Stamina";
+    private const string LastStaminaTimeKey = "LastStaminaTime";
 
     // 每日拼图
-    public const int DailyPuzzleCount = 10;                            // 每日拼图总张数
-    private const string DailyPuzzleDateKey = "DailyPuzzleDate";       // 生成日期（yyyyMMdd）
-    private const string DailyPuzzleImagesKey = "DailyPuzzleImages";   // 图片列表（分类_索引）
-    private const string DailyPuzzleDifficultiesKey = "DailyPuzzleDifficulties"; // 难度列表
-    private const string DailyPuzzleCompletedKey = "DailyPuzzleCompleted"; // 是否完成全部
-    private const string DailyPuzzleCompletedFlagsKey = "DailyPuzzleCompletedFlags"; // 每张完成标志（新）
+    private const string DailyPuzzleDateKey = "DailyPuzzleDate";
+    private const string DailyPuzzleImagesKey = "DailyPuzzleImages";
+    private const string DailyPuzzleDifficultiesKey = "DailyPuzzleDifficulties";
+    private const string DailyPuzzleCompletedKey = "DailyPuzzleCompleted";
+    private const string DailyPuzzleCompletedFlagsKey = "DailyPuzzleCompletedFlags";
 
-    // 上传图片
-    private const string UploadImagesKey = "UploadImages";             // 上传图片文件名列表
-
-    // 共享图片
-    private const string SharedImagesKey = "SharedImages";             // 共享图片文件名列表
+    // 上传与共享图片
+    private const string UploadImagesKey = "UploadImages";
+    private const string SharedImagesKey = "SharedImages";
 
     // 头像
-    private const string AvatarIndexKey = "AvatarIndex";               // 当前头像索引
+    private const string AvatarIndexKey = "AvatarIndex";
 
-    // ==================== 体力系统 ====================
+    #endregion
+
+    #region 体力系统常量
+
+    private const int BaseStamina = 100;                       // 初始体力上限
+    private const int StaminaIncreasePer5Levels = 50;          // 每 5 级增加的上限
+    private const int StaminaRecoveryIntervalSeconds = 60;     // 每 60 秒恢复 1 点
+    private const int StaminaRecoveryAmount = 1;               // 每次恢复量
+    public const int PuzzleStaminaCost = 10;                   // 每次拼图消耗体力
+
+    #endregion
+
+    #region 每日拼图常量
+
+    /// <summary>每日拼图总张数。</summary>
+    public const int DailyPuzzleCount = 10;
+
+    #endregion
+
+    #region 体力系统
 
     /// <summary>
-    /// 当前体力值（读取时自动根据离线时间恢复）
+    /// 当前体力值（读取时自动根据离线时间恢复）。
     /// </summary>
     public static int Stamina
     {
         get
         {
-            UpdateStaminaRecovery(); // 先更新离线恢复
+            UpdateStaminaRecovery();
             return PlayerPrefs.GetInt(StaminaKey, MaxStamina);
         }
         private set
@@ -82,19 +104,19 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 体力上限（根据等级计算，初始100，每5级+50）
+    /// 体力上限（根据等级计算，初始 100，每 5 级 +50）。
     /// </summary>
     public static int MaxStamina
     {
         get
         {
-            int levelGroup = (Level - 1) / 5; // 等级1-4→0，5-9→1，10-14→2...
+            int levelGroup = (Level - 1) / 5; // 等级 1-4→0，5-9→1，10-14→2...
             return BaseStamina + levelGroup * StaminaIncreasePer5Levels;
         }
     }
 
     /// <summary>
-    /// 增加体力，不会超过上限
+    /// 增加体力，不会超过上限。
     /// </summary>
     public static void AddStamina(int amount)
     {
@@ -103,7 +125,7 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 消耗体力，成功返回 true，失败返回 false
+    /// 消耗体力，成功返回 true，失败返回 false。
     /// </summary>
     public static bool ConsumeStamina(int amount)
     {
@@ -117,7 +139,7 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 根据离线时间自动恢复体力
+    /// 根据离线时间自动恢复体力。
     /// </summary>
     private static void UpdateStaminaRecovery()
     {
@@ -131,7 +153,8 @@ public static class GameDataManager
             int currentStamina = PlayerPrefs.GetInt(StaminaKey, MaxStamina);
             int newStamina = Mathf.Min(MaxStamina, currentStamina + recoveryCount * StaminaRecoveryAmount);
             PlayerPrefs.SetInt(StaminaKey, newStamina);
-            // 更新最后恢复时间（只减去完整恢复周期的秒数，保留零头）
+
+            // 只减去完整恢复周期的秒数，保留不足一次恢复的零头
             DateTime newLastTime = lastTime.AddSeconds(recoveryCount * StaminaRecoveryIntervalSeconds);
             PlayerPrefs.SetString(LastStaminaTimeKey, newLastTime.Ticks.ToString());
             PlayerPrefs.Save();
@@ -139,7 +162,7 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 初始化体力系统（首次游戏时设置满体力）
+    /// 初始化体力系统（首次游戏时设置满体力）。
     /// </summary>
     public static void InitStaminaSystem()
     {
@@ -151,8 +174,13 @@ public static class GameDataManager
         }
     }
 
-    // ==================== 金币 ====================
+    #endregion
 
+    #region 金币
+
+    /// <summary>
+    /// 当前金币数量。
+    /// </summary>
     public static int Coins
     {
         get => PlayerPrefs.GetInt(CoinsKey, 0);
@@ -163,8 +191,10 @@ public static class GameDataManager
         }
     }
 
+    /// <summary>增加金币。</summary>
     public static void AddCoins(int amount) => Coins += amount;
 
+    /// <summary>消费金币，成功返回 true，余额不足返回 false。</summary>
     public static bool SpendCoins(int amount)
     {
         if (Coins >= amount)
@@ -175,10 +205,12 @@ public static class GameDataManager
         return false;
     }
 
-    // ==================== 首通奖励标记 ====================
+    #endregion
+
+    #region 首通奖励标记
 
     /// <summary>
-    /// 检查某张图片的某个难度是否已领取过金币奖励
+    /// 检查某张图片的某个难度是否已领取过金币奖励。
     /// </summary>
     public static bool HasClaimedReward(string category, int imageIndex, int gridSize)
     {
@@ -187,7 +219,7 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 标记某张图片的某个难度已领取金币奖励
+    /// 标记某张图片的某个难度已领取金币奖励。
     /// </summary>
     public static void SetRewardClaimed(string category, int imageIndex, int gridSize)
     {
@@ -196,19 +228,20 @@ public static class GameDataManager
         PlayerPrefs.Save();
     }
 
-    // ==================== 分类与图片解锁 ====================
+    #endregion
+
+    #region 分类与图片解锁
 
     /// <summary>
-    /// 判断分类是否解锁（当前所有分类都解锁，直接返回 true）
+    /// 判断分类是否解锁（当前所有分类免费，始终返回 true）。
     /// </summary>
     public static bool IsCategoryUnlocked(string category)
     {
-        // 所有分类免费，始终解锁
         return true;
     }
 
     /// <summary>
-    /// 解锁分类（保留方法，以备后续需要）
+    /// 解锁分类（保留方法，以备后续付费分类扩展）。
     /// </summary>
     public static void UnlockCategory(string category)
     {
@@ -217,18 +250,17 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 判断某分类下的第 imageIndex 张图片是否解锁
+    /// 判断某分类下的第 imageIndex 张图片是否解锁。
     /// </summary>
     public static bool IsImageUnlocked(string category, int imageIndex)
     {
         // 前 FreeImagesPerCategory 张免费
-        if (imageIndex < FreeImagesPerCategory)
-            return true;
+        if (imageIndex < FreeImagesPerCategory) return true;
         return PlayerPrefs.GetInt(ImageUnlockPrefix + category + "_" + imageIndex, 0) == 1;
     }
 
     /// <summary>
-    /// 解锁图片
+    /// 解锁图片。
     /// </summary>
     public static void UnlockImage(string category, int imageIndex)
     {
@@ -237,27 +269,32 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 获取图片价格（目前统一价格）
+    /// 获取图片价格（目前统一价格）。
     /// </summary>
     public static int GetImagePrice(string category, int imageIndex)
     {
         return ImagePrice;
     }
 
-    // ==================== 玩家信息（名字、等级、经验） ====================
+    #endregion
 
+    #region 玩家信息（名字、等级、经验）
+
+    /// <summary>玩家名字。</summary>
     public static string PlayerName
     {
         get => PlayerPrefs.GetString(PlayerNameKey, "");
         set { PlayerPrefs.SetString(PlayerNameKey, value); PlayerPrefs.Save(); }
     }
 
+    /// <summary>玩家等级。</summary>
     public static int Level
     {
         get => PlayerPrefs.GetInt(LevelKey, 1);
         private set { PlayerPrefs.SetInt(LevelKey, value); PlayerPrefs.Save(); }
     }
 
+    /// <summary>当前经验值（未达到下一级的部分）。</summary>
     public static int Experience
     {
         get => PlayerPrefs.GetInt(ExperienceKey, 0);
@@ -265,7 +302,7 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 增加经验，自动处理升级
+    /// 增加经验，自动处理升级。
     /// </summary>
     public static void AddExperience(int amount)
     {
@@ -278,17 +315,19 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 获取指定等级升级所需经验值（公式：5 * (等级+1)）
+    /// 获取指定等级升级所需经验值（公式：5 × (等级 + 1)）。
     /// </summary>
     public static int GetRequiredExperience(int level)
     {
         return 5 * (level + 1);
     }
 
-    // ==================== 收藏夹 ====================
+    #endregion
+
+    #region 收藏夹
 
     /// <summary>
-    /// 获取收藏列表（字符串列表，每个元素格式 "分类_图片索引"）
+    /// 获取收藏列表（字符串列表，每个元素格式 "分类_图片索引"）。
     /// </summary>
     public static List<string> GetFavorites()
     {
@@ -297,6 +336,7 @@ public static class GameDataManager
         return new List<string>(saved.Split(','));
     }
 
+    /// <summary>添加收藏。</summary>
     public static void AddFavorite(string category, int imageIndex)
     {
         string key = category + "_" + imageIndex;
@@ -309,12 +349,14 @@ public static class GameDataManager
         }
     }
 
+    /// <summary>判断是否已收藏。</summary>
     public static bool IsFavorite(string category, int imageIndex)
     {
         string key = category + "_" + imageIndex;
         return GetFavorites().Contains(key);
     }
 
+    /// <summary>移除收藏。</summary>
     public static void RemoveFavorite(string category, int imageIndex)
     {
         string key = category + "_" + imageIndex;
@@ -326,10 +368,12 @@ public static class GameDataManager
         }
     }
 
-    // ==================== 每日拼图 ====================
+    #endregion
+
+    #region 每日拼图
 
     /// <summary>
-    /// 检查今日每日拼图是否已生成
+    /// 检查今日每日拼图是否已生成。
     /// </summary>
     public static bool IsDailyPuzzleGeneratedToday()
     {
@@ -337,7 +381,7 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 检查今日每日拼图是否已全部完成
+    /// 检查今日每日拼图是否已全部完成。
     /// </summary>
     public static bool IsDailyPuzzleCompletedToday()
     {
@@ -345,10 +389,11 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 生成新的每日拼图（随机选择10张图片，随机难度，所有分类包括未解锁）
+    /// 生成新的每日拼图（随机选择 10 张图片，随机难度，所有分类包括未解锁）。
     /// </summary>
     public static void GenerateDailyPuzzle()
     {
+        // 收集所有分类的图片
         List<string> allImages = new List<string>();
         foreach (string category in Categories)
         {
@@ -357,8 +402,10 @@ public static class GameDataManager
                 allImages.Add(category + "_" + i);
         }
 
+        // 随机抽取 10 张不重复图片，随机难度
         List<int> indices = new List<int>();
         for (int i = 0; i < allImages.Count; i++) indices.Add(i);
+
         List<string> selectedImages = new List<string>();
         List<int> selectedDifficulties = new List<int>();
         int[] difficulties = { 2, 8, 10 }; // 测试用，正式可改为 { 6, 8, 10 }
@@ -381,7 +428,7 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 获取每日拼图每张是否已完成（返回 bool 列表）
+    /// 获取每日拼图每张是否已完成（返回 bool 列表）。
     /// </summary>
     public static List<bool> GetDailyPuzzleCompletedFlags()
     {
@@ -396,7 +443,7 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 设置每日拼图中某张图片的完成状态
+    /// 设置每日拼图中某张图片的完成状态。
     /// </summary>
     public static void SetDailyPuzzleImageCompleted(int imageIndex, bool completed)
     {
@@ -408,7 +455,7 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 检查每日拼图中某张图片是否已完成
+    /// 检查每日拼图中某张图片是否已完成。
     /// </summary>
     public static bool IsDailyPuzzleImageCompleted(int imageIndex)
     {
@@ -418,7 +465,7 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 获取每日拼图图片列表
+    /// 获取每日拼图图片列表。
     /// </summary>
     public static List<string> GetDailyPuzzleImages()
     {
@@ -428,7 +475,7 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 获取每日拼图难度列表
+    /// 获取每日拼图难度列表。
     /// </summary>
     public static List<int> GetDailyPuzzleDifficulties()
     {
@@ -443,7 +490,7 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 标记每日拼图全部完成
+    /// 标记每日拼图全部完成。
     /// </summary>
     public static void SetDailyPuzzleCompleted()
     {
@@ -451,10 +498,12 @@ public static class GameDataManager
         PlayerPrefs.Save();
     }
 
-    // ==================== 上传图片 ====================
+    #endregion
+
+    #region 上传图片
 
     /// <summary>
-    /// 获取所有已上传图片的文件名列表
+    /// 获取所有已上传图片的文件名列表。
     /// </summary>
     public static List<string> GetUploadedImages()
     {
@@ -464,7 +513,7 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 添加一个上传图片文件名
+    /// 添加一个上传图片文件名。
     /// </summary>
     public static void AddUploadedImage(string fileName)
     {
@@ -478,7 +527,7 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 删除一个上传图片（同时删除文件）
+    /// 删除一个上传图片（同时删除磁盘文件）。
     /// </summary>
     public static void RemoveUploadedImage(string fileName)
     {
@@ -494,17 +543,19 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 获取上传图片的完整路径
+    /// 获取上传图片的完整路径。
     /// </summary>
     public static string GetUploadedImagePath(string fileName)
     {
         return Path.Combine(Application.persistentDataPath, "Uploads", fileName);
     }
 
-    // ==================== 共享图片 ====================
+    #endregion
+
+    #region 共享图片
 
     /// <summary>
-    /// 获取所有共享图片的文件名列表
+    /// 获取所有共享图片的文件名列表。
     /// </summary>
     public static List<string> GetSharedImages()
     {
@@ -514,7 +565,7 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 添加一个共享图片文件名
+    /// 添加一个共享图片文件名。
     /// </summary>
     public static void AddSharedImage(string fileName)
     {
@@ -528,17 +579,19 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 获取共享图片的完整路径
+    /// 获取共享图片的完整路径。
     /// </summary>
     public static string GetSharedImagePath(string fileName)
     {
         return Path.Combine(Application.persistentDataPath, "Shared", fileName);
     }
 
-    // ==================== 头像 ====================
+    #endregion
+
+    #region 头像
 
     /// <summary>
-    /// 获取当前头像索引（从0开始）
+    /// 获取当前头像索引（从 0 开始）。
     /// </summary>
     public static int GetAvatarIndex()
     {
@@ -546,7 +599,7 @@ public static class GameDataManager
     }
 
     /// <summary>
-    /// 设置当前头像索引
+    /// 设置当前头像索引。
     /// </summary>
     public static void SetAvatarIndex(int index)
     {
@@ -554,10 +607,12 @@ public static class GameDataManager
         PlayerPrefs.Save();
     }
 
-    // ==================== 编辑器工具 ====================
+    #endregion
+
+    #region 编辑器工具
 
     /// <summary>
-    /// 仅在编辑器环境下重置所有数据（金币、解锁状态等）
+    /// 仅在编辑器环境下重置所有数据（金币、解锁状态等）。
     /// </summary>
     public static void ResetForEditor()
     {
@@ -567,4 +622,6 @@ public static class GameDataManager
         Debug.Log("Editor: PlayerPrefs 已重置");
 #endif
     }
+
+    #endregion
 }

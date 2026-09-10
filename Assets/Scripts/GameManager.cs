@@ -12,25 +12,30 @@ using Random = UnityEngine.Random;
 /// </summary>
 public class GameManager : MonoBehaviour
 {
-    public static GameManager Instance;
+    #region 单例
 
-    // ==================== UI 引用 ====================
+    public static GameManager Instance { get; private set; }
+
+    #endregion
+
+    #region UI 引用与配置
+
     [Header("音效")]
-    public AudioClip victorySound;
-    public AudioClip dailyCompleteSound;
+    public AudioClip victorySound;          // 胜利音效
+    public AudioClip dailyCompleteSound;    // 每日拼图全部完成音效
 
     [Header("UI References")]
-    public Button favoriteButton;
-    public Button nextImageButton;
-    public Button prevImageButton;
-    public Button backButton;
-    public Button hintButton;
-    public Button returnButton;
-    public RectTransform listContent;
-    public RectTransform puzzleArea;
-    public GameObject victoryPanel;
-    public GameObject piecePrefab;
-    public Text rewardText;
+    public Button favoriteButton;           // 收藏按钮
+    public Button nextImageButton;          // 下一张按钮
+    public Button prevImageButton;          // 上一张按钮
+    public Button backButton;               // 返回主菜单按钮
+    public Button hintButton;               // 提示按钮（按住显示原图）
+    public Button returnButton;             // 返回碎片按钮
+    public RectTransform listContent;       // 碎片列表 Content
+    public RectTransform puzzleArea;        // 拼图区域
+    public GameObject victoryPanel;         // 胜利面板
+    public GameObject piecePrefab;          // 碎片预制体
+    public Text rewardText;                 // 胜利面板奖励文字
 
     [Header("确认弹窗")]
     public GameObject confirmPanel;
@@ -54,75 +59,96 @@ public class GameManager : MonoBehaviour
     public float pieceSize = 100f;
     public float spacingFactor = 1f;
 
-    // 对外暴露的属性，供 PuzzlePiece 访问
+    #endregion
+
+    #region 对外属性
+
+    /// <summary>已锁定的碎片数量（供 PuzzlePiece 访问）。</summary>
     public int LockedCount => lockedCount;
+
+    /// <summary>碎片总数（供 PuzzlePiece 访问）。</summary>
     public int TotalPieces => totalPieces;
 
-    // ==================== 私有状态 ====================
+    /// <summary>是否处于多点触控状态。</summary>
+    public bool IsMultiTouch => isMultiTouch;
 
-    private bool isDailyPuzzle = false;
-    private int currentImageIndex = -1;
-    private string selectedCategory;
-    private int selectedImageIndex = -1;
-    private int gridSize = 2;
-    private float timeRemaining;
-    private bool isVictory = false;
+    #endregion
 
-    private RectTransform puzzleContent;
-    private float currentZoom = 1f;
-    private Vector2 contentOffset;
+    #region 私有状态
+
+    private bool isDailyPuzzle = false;         // 是否为每日拼图模式
+    private int currentImageIndex = -1;         // 当前实际使用的图片索引
+    private string selectedCategory;            // 当前分类
+    private int selectedImageIndex = -1;        // 用户选中的图片索引（-1 为随机）
+    private int gridSize = 2;                   // 难度（行列数），测试用 2，正式可 6/8/10
+    private float timeRemaining;                // 剩余时间
+    private bool isVictory = false;             // 是否已胜利
+
+    private RectTransform puzzleContent;        // 拼图内容容器（碎片和网格的父物体）
+    private float currentZoom = 1f;             // 当前缩放倍数
+    private Vector2 contentOffset;              // 平移偏移量
     private float maxZoom = 2f;
     private float minZoom = 1f;
 
-    private Sprite[] allSprites;
-    private Sprite chosenSprite;
-    private int rows, cols;
-    private List<PuzzlePiece> activePieces = new List<PuzzlePiece>();
-    private int totalPieces;
-    private int lockedCount = 0;
+    private Sprite[] allSprites;                // 当前分类下的所有图片（普通分类）
+    private Sprite chosenSprite;                // 当前选中的图片
+    private int rows, cols;                     // 实际行列数
+    private List<PuzzlePiece> activePieces = new List<PuzzlePiece>();   // 拼图区域中的碎片
+    private int totalPieces;                    // 总碎片数
+    private int lockedCount = 0;                // 已锁定碎片数
 
-    private Image hintImage;
-    private bool isMultiTouch = false;
-    public bool IsMultiTouch => isMultiTouch;
+    private Image hintImage;                    // 提示图
+    private bool isMultiTouch = false;          // 是否多点触控
 
-    private System.Action confirmAction;
-    private int dailyPuzzleCurrentIndex = -1;
+    private System.Action confirmAction;        // 确认弹窗回调
+    private int dailyPuzzleCurrentIndex = -1;   // 每日拼图当前索引
 
-    void Awake()
+    #endregion
+
+    #region Unity 生命周期
+
+    private void Awake()
     {
         Instance = this;
 
+        // 绑定按钮事件
         favoriteButton.onClick.AddListener(ToggleFavorite);
         nextImageButton.onClick.AddListener(NextImage);
         prevImageButton.onClick.AddListener(PrevImage);
         backButton.onClick.AddListener(BackToMenu);
         returnButton.onClick.AddListener(ReturnUnlockedPieces);
 
+        // 提示按钮：按下显示原图，抬起隐藏
         EventTrigger trigger = hintButton.gameObject.GetComponent<EventTrigger>();
         if (trigger == null) trigger = hintButton.gameObject.AddComponent<EventTrigger>();
+
         EventTrigger.Entry pointerDownEntry = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown };
         pointerDownEntry.callback.AddListener((data) => { ShowHint(); });
         trigger.triggers.Add(pointerDownEntry);
+
         EventTrigger.Entry pointerUpEntry = new EventTrigger.Entry { eventID = EventTriggerType.PointerUp };
         pointerUpEntry.callback.AddListener((data) => { HideHint(); });
         trigger.triggers.Add(pointerUpEntry);
 
+        // 确认弹窗
         confirmYesButton.onClick.AddListener(OnConfirmYes);
         confirmNoButton.onClick.AddListener(() => confirmPanel.SetActive(false));
         confirmPanel.SetActive(false);
 
+        // 为拼图区域添加裁剪
         if (puzzleArea.GetComponent<RectMask2D>() == null)
             puzzleArea.gameObject.AddComponent<RectMask2D>();
 
         victoryPanel.SetActive(false);
     }
 
-    void Start()
+    private void Start()
     {
         isDailyPuzzle = PlayerPrefs.GetInt("IsDailyPuzzle", 0) == 1;
 
         if (isDailyPuzzle)
         {
+            // 每日拼图模式
             List<string> images = GameDataManager.GetDailyPuzzleImages();
             List<int> difficulties = GameDataManager.GetDailyPuzzleDifficulties();
 
@@ -143,11 +169,13 @@ public class GameManager : MonoBehaviour
         }
         else
         {
+            // 普通模式
             selectedCategory = PlayerPrefs.GetString("SelectedCategory", "1");
             gridSize = PlayerPrefs.GetInt("Difficulty", 6);
             selectedImageIndex = PlayerPrefs.GetInt("SelectedImageIndex", -1);
         }
 
+        // 设置时间限制
         switch (gridSize)
         {
             case 2: timeRemaining = easyTimeLimit; break;
@@ -159,18 +187,28 @@ public class GameManager : MonoBehaviour
         StartNewGame();
     }
 
-    void Update()
+    private void Update()
     {
+        // 倒计时
         if (!isVictory)
         {
             timeRemaining -= Time.deltaTime;
             if (timeRemaining <= 0) timeRemaining = 0;
         }
+
         HandleTouchInput();
     }
 
-    void StartNewGame()
+    #endregion
+
+    #region 游戏初始化
+
+    /// <summary>
+    /// 开始新拼图：加载图片、切割、生成碎片列表和网格。
+    /// </summary>
+    private void StartNewGame()
     {
+        // 体力检查（每日拼图不消耗）
         if (!isDailyPuzzle && GameDataManager.Stamina < GameDataManager.PuzzleStaminaCost)
         {
             Debug.Log("体力不足，无法开始拼图");
@@ -178,6 +216,7 @@ public class GameManager : MonoBehaviour
             return;
         }
 
+        // 重置状态
         isVictory = false;
         victoryPanel.SetActive(false);
         if (rewardText != null) rewardText.text = "";
@@ -265,7 +304,7 @@ public class GameManager : MonoBehaviour
 
         Texture2D texture = chosenSprite.texture;
 
-        // 上传分类和共享分类不支持收藏，禁用按钮
+        // 上传分类和共享分类不支持收藏
         if (favoriteButton != null)
         {
             bool canFavorite = (selectedCategory != GameDataManager.UploadCategory &&
@@ -274,6 +313,7 @@ public class GameManager : MonoBehaviour
         }
         UpdateFavoriteButtonColor();
 
+        // ==================== 设置拼图区域 ====================
         rows = gridSize;
         cols = gridSize;
         totalPieces = rows * cols;
@@ -288,6 +328,7 @@ public class GameManager : MonoBehaviour
         puzzleArea.sizeDelta = new Vector2(cols * pieceSize, rows * pieceSize);
         puzzleArea.anchoredPosition = new Vector2(0f, 300f);
 
+        // 创建拼图内容容器
         GameObject contentObj = new GameObject("PuzzleContent", typeof(RectTransform));
         contentObj.transform.SetParent(puzzleArea, false);
         puzzleContent = contentObj.GetComponent<RectTransform>();
@@ -300,19 +341,21 @@ public class GameManager : MonoBehaviour
         currentZoom = 1f;
         contentOffset = Vector2.zero;
 
+        // 每日拼图已完成的图片直接显示完整图
         if (isDailyPuzzle && GameDataManager.IsDailyPuzzleImageCompleted(dailyPuzzleCurrentIndex))
         {
             GenerateCompletedPuzzle(texture);
             return;
         }
 
+        // ==================== 切割并创建碎片 ====================
         Sprite[] pieces = CutTexture(texture, rows, cols);
         List<PuzzlePieceData> pieceDataList = new List<PuzzlePieceData>();
         for (int i = 0; i < totalPieces; i++)
             pieceDataList.Add(new PuzzlePieceData(i, pieces[i], Random.Range(0, 4) * 90));
         Shuffle(pieceDataList);
 
-        // 水平布局列表
+        // 设置碎片列表水平布局
         listContent.anchorMin = new Vector2(0, 0.5f);
         listContent.anchorMax = new Vector2(0, 0.5f);
         listContent.pivot = new Vector2(0, 0.5f);
@@ -340,10 +383,14 @@ public class GameManager : MonoBehaviour
 
         LayoutRebuilder.ForceRebuildLayoutImmediate(listContent);
         listContent.anchoredPosition = Vector2.zero;
+
         CreateGridOverlay();
     }
 
-    void GenerateCompletedPuzzle(Texture2D texture)
+    /// <summary>
+    /// 生成已完成拼图的完整图显示（用于每日拼图已完成的图片）。
+    /// </summary>
+    private void GenerateCompletedPuzzle(Texture2D texture)
     {
         victoryPanel.SetActive(false);
         if (rewardText != null) rewardText.text = "";
@@ -362,7 +409,10 @@ public class GameManager : MonoBehaviour
         img.raycastTarget = false;
     }
 
-    void CreateGridOverlay()
+    /// <summary>
+    /// 创建网格线覆盖层。
+    /// </summary>
+    private void CreateGridOverlay()
     {
         GameObject gridObj = new GameObject("GridOverlay", typeof(RectTransform));
         gridObj.transform.SetParent(puzzleContent, false);
@@ -376,19 +426,27 @@ public class GameManager : MonoBehaviour
         float totalWidth = cols * pieceSize;
         float totalHeight = rows * pieceSize;
 
+        // 垂直线
         for (int i = 0; i <= cols; i++)
         {
             float x = -totalWidth / 2f + i * pieceSize;
-            CreateGridLine(gridObj.transform, "VerticalLine_" + i, new Vector2(gridLineThickness, totalHeight), new Vector2(x, 0f));
+            CreateGridLine(gridObj.transform, "VerticalLine_" + i,
+                new Vector2(gridLineThickness, totalHeight), new Vector2(x, 0f));
         }
+
+        // 水平线
         for (int i = 0; i <= rows; i++)
         {
             float y = totalHeight / 2f - i * pieceSize;
-            CreateGridLine(gridObj.transform, "HorizontalLine_" + i, new Vector2(totalWidth, gridLineThickness), new Vector2(0f, y));
+            CreateGridLine(gridObj.transform, "HorizontalLine_" + i,
+                new Vector2(totalWidth, gridLineThickness), new Vector2(0f, y));
         }
     }
 
-    void CreateGridLine(Transform parent, string name, Vector2 size, Vector2 anchoredPos)
+    /// <summary>
+    /// 创建单条网格线。
+    /// </summary>
+    private void CreateGridLine(Transform parent, string name, Vector2 size, Vector2 anchoredPos)
     {
         GameObject lineObj = new GameObject(name, typeof(RectTransform));
         lineObj.transform.SetParent(parent, false);
@@ -403,14 +461,23 @@ public class GameManager : MonoBehaviour
         img.raycastTarget = false;
     }
 
-    void CreateListPiece(Sprite sprite, int index, int rotation)
+    #endregion
+
+    #region 碎片创建与管理
+
+    /// <summary>
+    /// 在列表中创建一个碎片项（不可交互）。
+    /// </summary>
+    private void CreateListPiece(Sprite sprite, int index, int rotation)
     {
         GameObject pieceObj = Instantiate(piecePrefab, listContent);
         PuzzlePiece piece = pieceObj.GetComponent<PuzzlePiece>();
         piece.Initialize(sprite, index, rotation);
         piece.interactable = false;
+
         RectTransform rt = pieceObj.GetComponent<RectTransform>();
         rt.sizeDelta = new Vector2(listPieceSize, listPieceSize);
+
         LayoutElement layoutElement = pieceObj.AddComponent<LayoutElement>();
         layoutElement.preferredWidth = listPieceSize;
         layoutElement.preferredHeight = listPieceSize;
@@ -418,17 +485,22 @@ public class GameManager : MonoBehaviour
         layoutElement.minHeight = listPieceSize;
         layoutElement.flexibleWidth = 0;
         layoutElement.flexibleHeight = 0;
+
         if (pieceObj.GetComponent<Button>() == null) pieceObj.AddComponent<Button>();
         pieceObj.GetComponent<Button>().onClick.AddListener(() => OnListPieceClicked(piece, pieceObj));
     }
 
-    void OnListPieceClicked(PuzzlePiece listPiece, GameObject listObj)
+    /// <summary>
+    /// 点击列表中的碎片：将其移动到拼图区域，变为可交互。
+    /// </summary>
+    private void OnListPieceClicked(PuzzlePiece listPiece, GameObject listObj)
     {
         GameObject newPieceObj = Instantiate(piecePrefab, puzzleContent);
         PuzzlePiece newPiece = newPieceObj.GetComponent<PuzzlePiece>();
         newPiece.Initialize(listPiece.GetComponent<Image>().sprite, listPiece.pieceIndex, listPiece.currentRotation);
         newPiece.interactable = true;
 
+        // 计算目标位置
         int row = listPiece.pieceIndex / cols;
         int col = listPiece.pieceIndex % cols;
         float targetX = (col - (cols - 1) / 2f) * pieceSize;
@@ -438,10 +510,12 @@ public class GameManager : MonoBehaviour
         RectTransform rt = newPieceObj.GetComponent<RectTransform>();
         rt.sizeDelta = new Vector2(pieceSize, pieceSize);
 
+        // 随机初始位置
         float halfW = puzzleArea.rect.width / 2f - pieceSize / 2f;
         float halfH = puzzleArea.rect.height / 2f - pieceSize / 2f;
         rt.anchoredPosition = new Vector2(Random.Range(-halfW, halfW), Random.Range(-halfH, halfH));
 
+        // 移除按钮组件（避免与拖拽冲突）
         Button btn = newPieceObj.GetComponent<Button>();
         if (btn != null) Destroy(btn);
 
@@ -450,11 +524,41 @@ public class GameManager : MonoBehaviour
         Destroy(listObj);
     }
 
-    Sprite[] CutTexture(Texture2D texture, int rows, int cols)
+    /// <summary>
+    /// 将未锁定的碎片返回到列表。
+    /// </summary>
+    public void ReturnUnlockedPieces()
+    {
+        List<PuzzlePiece> unlockedPieces = new List<PuzzlePiece>();
+        foreach (var piece in activePieces)
+        {
+            if (!piece.isLocked) unlockedPieces.Add(piece);
+        }
+
+        foreach (var piece in unlockedPieces)
+        {
+            Sprite sprite = piece.GetComponent<Image>().sprite;
+            int index = piece.pieceIndex;
+            int rotation = piece.currentRotation;
+            CreateListPiece(sprite, index, rotation);
+            activePieces.Remove(piece);
+            Destroy(piece.gameObject);
+        }
+    }
+
+    #endregion
+
+    #region 工具方法
+
+    /// <summary>
+    /// 将纹理切割为行列数的碎片 Sprite 数组。
+    /// </summary>
+    private Sprite[] CutTexture(Texture2D texture, int rows, int cols)
     {
         Sprite[] sprites = new Sprite[rows * cols];
         int pieceWidth = texture.width / cols;
         int pieceHeight = texture.height / rows;
+
         for (int r = 0; r < rows; r++)
         {
             for (int c = 0; c < cols; c++)
@@ -466,7 +570,10 @@ public class GameManager : MonoBehaviour
         return sprites;
     }
 
-    void Shuffle<T>(List<T> list)
+    /// <summary>
+    /// 洗牌算法（Fisher-Yates）。
+    /// </summary>
+    private void Shuffle<T>(List<T> list)
     {
         for (int i = 0; i < list.Count; i++)
         {
@@ -477,17 +584,27 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    #endregion
+
+    #region 胜利结算
+
+    /// <summary>
+    /// 每次锁定碎片时调用，检查是否全部完成。
+    /// </summary>
     public void CheckVictory()
     {
         lockedCount++;
         if (lockedCount >= totalPieces)
         {
             isVictory = true;
+
+            // 播放胜利音效
             if (victorySound != null && SoundManager.Instance != null)
                 SoundManager.Instance.PlayPuzzleSound(victorySound);
 
             if (isDailyPuzzle)
             {
+                // 每日拼图逻辑
                 GameDataManager.SetDailyPuzzleImageCompleted(dailyPuzzleCurrentIndex, true);
                 List<bool> flags = GameDataManager.GetDailyPuzzleCompletedFlags();
                 int completedCount = 0;
@@ -495,13 +612,16 @@ public class GameManager : MonoBehaviour
 
                 if (completedCount >= GameDataManager.DailyPuzzleCount)
                 {
+                    // 全部每日拼图完成
                     if (dailyCompleteSound != null && SoundManager.Instance != null)
                         SoundManager.Instance.PlayPuzzleSound(dailyCompleteSound);
+
                     int dailyReward = 50;
                     GameDataManager.AddCoins(dailyReward);
                     GameDataManager.SetDailyPuzzleCompleted();
                     PlayerPrefs.SetInt("IsDailyPuzzle", 0);
                     PlayerPrefs.Save();
+
                     if (rewardText != null) rewardText.text = $"恭喜完成每日拼图！获得金币：{dailyReward}";
                     victoryPanel.SetActive(true);
                 }
@@ -513,24 +633,16 @@ public class GameManager : MonoBehaviour
             }
             else
             {
+                // 普通模式
                 GameDataManager.ConsumeStamina(GameDataManager.PuzzleStaminaCost);
 
                 int baseReward = 0;
                 int experienceReward = 0;
                 switch (gridSize)
                 {
-                    case 2:
-                        baseReward = 5;
-                        experienceReward = 3;
-                        break;
-                    case 8:
-                        baseReward = 10;
-                        experienceReward = 5;
-                        break;
-                    case 10:
-                        baseReward = 15;
-                        experienceReward = 8;
-                        break;
+                    case 2: baseReward = 5; experienceReward = 3; break;
+                    case 8: baseReward = 10; experienceReward = 5; break;
+                    case 10: baseReward = 15; experienceReward = 8; break;
                 }
 
                 int bonus = (timeRemaining > 0) ? 3 : 0;
@@ -561,18 +673,28 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    #endregion
+
+    #region 提示功能
+
+    /// <summary>
+    /// 显示提示图（半透明原图）。
+    /// </summary>
     public void ShowHint()
     {
         if (hintImage != null) return;
+
         GameObject hintObj = new GameObject("HintImage", typeof(RectTransform));
         hintObj.transform.SetParent(puzzleArea, false);
         hintObj.transform.SetAsFirstSibling();
+
         RectTransform hintRect = hintObj.GetComponent<RectTransform>();
         hintRect.anchorMin = new Vector2(0.5f, 0.5f);
         hintRect.anchorMax = new Vector2(0.5f, 0.5f);
         hintRect.pivot = new Vector2(0.5f, 0.5f);
         hintRect.sizeDelta = puzzleArea.sizeDelta;
         hintRect.anchoredPosition = Vector2.zero;
+
         Image img = hintObj.AddComponent<Image>();
         img.sprite = chosenSprite;
         img.color = new Color(1f, 1f, 1f, 0.3f);
@@ -580,6 +702,9 @@ public class GameManager : MonoBehaviour
         hintImage = img;
     }
 
+    /// <summary>
+    /// 隐藏提示图。
+    /// </summary>
     public void HideHint()
     {
         if (hintImage != null)
@@ -589,24 +714,13 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    public void ReturnUnlockedPieces()
-    {
-        List<PuzzlePiece> unlockedPieces = new List<PuzzlePiece>();
-        foreach (var piece in activePieces)
-        {
-            if (!piece.isLocked) unlockedPieces.Add(piece);
-        }
-        foreach (var piece in unlockedPieces)
-        {
-            Sprite sprite = piece.GetComponent<Image>().sprite;
-            int index = piece.pieceIndex;
-            int rotation = piece.currentRotation;
-            CreateListPiece(sprite, index, rotation);
-            activePieces.Remove(piece);
-            Destroy(piece.gameObject);
-        }
-    }
+    #endregion
 
+    #region 图片切换
+
+    /// <summary>
+    /// 切换到下一张图片。
+    /// </summary>
     public void NextImage()
     {
         if (isDailyPuzzle)
@@ -681,8 +795,8 @@ public class GameManager : MonoBehaviour
             ShowConfirm("体力不足，无法切换图片", null);
             return;
         }
+
         // 从当前图片往后找第一张已解锁的图片
-        int next = currentImageIndex;
         int found = -1;
         for (int i = 1; i <= allSprites.Length; i++)
         {
@@ -700,7 +814,6 @@ public class GameManager : MonoBehaviour
             return;
         }
 
-        // 如果绕了一圈回到当前图片，说明只有当前这一张已解锁
         if (found == currentImageIndex)
         {
             ShowConfirm("已经是最后一张已解锁的图片", null);
@@ -711,6 +824,9 @@ public class GameManager : MonoBehaviour
         StartNewGame();
     }
 
+    /// <summary>
+    /// 切换到上一张图片。
+    /// </summary>
     public void PrevImage()
     {
         if (isDailyPuzzle)
@@ -734,32 +850,20 @@ public class GameManager : MonoBehaviour
                 return;
             }
 
-            // 从当前图片往前找第一张已解锁的图片
-            int found = -1;
-            for (int i = 1; i <= allSprites.Length; i++)
+            if (currentImageIndex <= 0)
             {
-                int idx = (currentImageIndex - i + allSprites.Length) % allSprites.Length;
-                if (GameDataManager.IsImageUnlocked(selectedCategory, idx))
+                ShowConfirm("已经到第一张，是否直接到最后一张？", () =>
                 {
-                    found = idx;
-                    break;
-                }
+                    selectedImageIndex = uploadFiles.Count - 1;
+                    StartNewGame();
+                });
             }
-
-            if (found == -1)
+            else
             {
-                ShowConfirm("没有其他已解锁的图片，请先解锁更多图片。", null);
-                return;
+                selectedImageIndex = currentImageIndex - 1;
+                StartNewGame();
             }
-
-            if (found == currentImageIndex)
-            {
-                ShowConfirm("已经是第一张已解锁的图片", null);
-                return;
-            }
-
-            selectedImageIndex = found;
-            StartNewGame();
+            return;
         }
 
         // ===== 共享分类 =====
@@ -797,22 +901,39 @@ public class GameManager : MonoBehaviour
             ShowConfirm("体力不足，无法切换图片", null);
             return;
         }
-        if (currentImageIndex == 0)
+
+        // 从当前图片往前找第一张已解锁的图片
+        int found = -1;
+        for (int i = 1; i <= allSprites.Length; i++)
         {
-            ShowConfirm("已经到第一章，是否直接到最后一张？", () =>
+            int idx = (currentImageIndex - i + allSprites.Length) % allSprites.Length;
+            if (GameDataManager.IsImageUnlocked(selectedCategory, idx))
             {
-                selectedImageIndex = allSprites.Length - 1;
-                StartNewGame();
-            });
+                found = idx;
+                break;
+            }
         }
-        else
+
+        if (found == -1)
         {
-            selectedImageIndex = currentImageIndex - 1;
-            StartNewGame();
+            ShowConfirm("没有其他已解锁的图片，请先解锁更多图片。", null);
+            return;
         }
+
+        if (found == currentImageIndex)
+        {
+            ShowConfirm("已经是第一张已解锁的图片", null);
+            return;
+        }
+
+        selectedImageIndex = found;
+        StartNewGame();
     }
 
-    void LoadDailyPuzzleImage(int index)
+    /// <summary>
+    /// 加载每日拼图中指定索引的图片。
+    /// </summary>
+    private void LoadDailyPuzzleImage(int index)
     {
         List<string> images = GameDataManager.GetDailyPuzzleImages();
         List<int> difficulties = GameDataManager.GetDailyPuzzleDifficulties();
@@ -826,18 +947,26 @@ public class GameManager : MonoBehaviour
         StartNewGame();
     }
 
-    void ShowConfirm(string message, System.Action onConfirm)
+    #endregion
+
+    #region 确认弹窗
+
+    private void ShowConfirm(string message, System.Action onConfirm)
     {
         confirmText.text = message;
         confirmAction = onConfirm;
         confirmPanel.SetActive(true);
     }
 
-    void OnConfirmYes()
+    private void OnConfirmYes()
     {
         confirmPanel.SetActive(false);
         confirmAction?.Invoke();
     }
+
+    #endregion
+
+    #region 收藏
 
     private void UpdateFavoriteButtonColor()
     {
@@ -862,20 +991,26 @@ public class GameManager : MonoBehaviour
             : Color.white;
     }
 
-    void ToggleFavorite()
+    private void ToggleFavorite()
     {
         // 上传和共享分类不支持收藏
         if (selectedCategory == GameDataManager.UploadCategory ||
             selectedCategory == GameDataManager.SharedCategory) return;
         if (selectedCategory == null || currentImageIndex < 0) return;
+
         if (GameDataManager.IsFavorite(selectedCategory, currentImageIndex))
             GameDataManager.RemoveFavorite(selectedCategory, currentImageIndex);
         else
             GameDataManager.AddFavorite(selectedCategory, currentImageIndex);
+
         UpdateFavoriteButtonColor();
     }
 
-    void HandleTouchInput()
+    #endregion
+
+    #region 触摸缩放与平移
+
+    private void HandleTouchInput()
     {
         if (Input.touchCount == 1)
         {
@@ -884,12 +1019,14 @@ public class GameManager : MonoBehaviour
         else if (Input.touchCount >= 2)
         {
             isMultiTouch = true;
+
             Touch touch0 = Input.GetTouch(0);
             Touch touch1 = Input.GetTouch(1);
 
             if (!IsPointOverPuzzleArea(touch0.position) || !IsPointOverPuzzleArea(touch1.position))
                 return;
 
+            // 缩放
             Vector2 touch0PrevPos = touch0.position - touch0.deltaPosition;
             Vector2 touch1PrevPos = touch1.position - touch1.deltaPosition;
             float prevDistance = Vector2.Distance(touch0PrevPos, touch1PrevPos);
@@ -901,6 +1038,7 @@ public class GameManager : MonoBehaviour
                 currentZoom = Mathf.Clamp(currentZoom * zoomFactor, minZoom, maxZoom);
             }
 
+            // 平移
             Vector2 prevMidpoint = (touch0PrevPos + touch1PrevPos) / 2f;
             Vector2 currentMidpoint = (touch0.position + touch1.position) / 2f;
 
@@ -918,38 +1056,50 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    bool IsPointOverPuzzleArea(Vector2 screenPoint)
+    private bool IsPointOverPuzzleArea(Vector2 screenPoint)
     {
         return RectTransformUtility.RectangleContainsScreenPoint(puzzleArea, screenPoint, null);
     }
 
-    void ApplyContentTransform()
+    private void ApplyContentTransform()
     {
         if (puzzleContent == null) return;
+
         float contentWidth = puzzleArea.sizeDelta.x * currentZoom;
         float contentHeight = puzzleArea.sizeDelta.y * currentZoom;
         float maxOffsetX = Mathf.Max(0, (contentWidth - puzzleArea.sizeDelta.x) / 2f);
         float maxOffsetY = Mathf.Max(0, (contentHeight - puzzleArea.sizeDelta.y) / 2f);
+
         contentOffset.x = Mathf.Clamp(contentOffset.x, -maxOffsetX, maxOffsetX);
         contentOffset.y = Mathf.Clamp(contentOffset.y, -maxOffsetY, maxOffsetY);
+
         puzzleContent.localScale = new Vector3(currentZoom, currentZoom, 1f);
         puzzleContent.anchoredPosition = contentOffset;
     }
 
-    void BackToMenu()
+    #endregion
+
+    #region 返回主菜单
+
+    private void BackToMenu()
     {
         PlayerPrefs.SetInt("IsDailyPuzzle", 0);
         PlayerPrefs.Save();
         SceneManager.LoadScene("LevelScene");
     }
+
+    #endregion
 }
 
-// 辅助数据结构
+/// <summary>
+/// 辅助数据结构：用于在生成碎片前临时保存碎片信息。
+/// </summary>
 public class PuzzlePieceData
 {
     public int index;
     public Sprite sprite;
     public int rotation;
+
     public PuzzlePieceData(int index, Sprite sprite, int rotation)
     {
         this.index = index;
