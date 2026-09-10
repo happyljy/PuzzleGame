@@ -26,15 +26,45 @@ public class SplashAnimation : MonoBehaviour
     public float glowDuration = 0.3f;
     public float glowDelay = 0.2f;
 
+    [Header("音效")]
+    public AudioClip flyArriveSound;    // 字母飞入到位时播放
+    public AudioClip glowSound;         // 字母亮起时播放
+    private AudioSource audioSource;
+
     [Header("场景加载")]
     public string mainMenuSceneName = "LevelScene";
 
-    // 保存字母的目标位置（Inspector 中手动设置或通过代码记录）
     private Vector2[] targetPositions;
 
     void Awake()
     {
-        // 将所有字母的初始透明度设为 0（隐藏）
+        // 添加 AudioSource 用于播放音效
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+            audioSource = gameObject.AddComponent<AudioSource>();
+        audioSource.playOnAwake = false;
+    }
+
+    void Start()
+    {
+        // 记录目标位置
+        targetPositions = new Vector2[flyingLetters.Length];
+        for (int i = 0; i < flyingLetters.Length; i++)
+        {
+            targetPositions[i] = flyingLetters[i].anchoredPosition;
+        }
+
+        // 设置飞入起始位置（屏幕外）
+        for (int i = 0; i < flyingLetters.Length; i++)
+        {
+            Vector2 dir = flyDirections[i].normalized;
+            float offsetX = Screen.width * 1.2f;
+            float offsetY = Screen.height * 1.2f;
+            Vector2 startOffset = new Vector2(dir.x * offsetX, dir.y * offsetY);
+            flyingLetters[i].anchoredPosition = targetPositions[i] + startOffset;
+        }
+
+        // 初始透明
         foreach (var letter in flyingLetters)
         {
             Graphic graphic = letter.GetComponent<Graphic>();
@@ -51,33 +81,13 @@ public class SplashAnimation : MonoBehaviour
             c.a = 0f;
             letter.color = c;
         }
-    }
-
-    void Start()
-    {
-        // 记录目标位置
-        targetPositions = new Vector2[flyingLetters.Length];
-        for (int i = 0; i < flyingLetters.Length; i++)
-        {
-            targetPositions[i] = flyingLetters[i].anchoredPosition;
-        }
-
-        // 设置飞入起始位置
-        for (int i = 0; i < flyingLetters.Length; i++)
-        {
-            Vector2 dir = flyDirections[i].normalized;
-            float offsetX = Screen.width * 1.2f;   // 宽度偏移，字母会从更远的地方飞来
-            float offsetY = Screen.height * 1.2f;  // 高度偏移
-            Vector2 startOffset = new Vector2(dir.x * offsetX, dir.y * offsetY);
-            flyingLetters[i].anchoredPosition = targetPositions[i] + startOffset;
-        }
 
         StartCoroutine(PlayAnimation());
     }
 
     IEnumerator PlayAnimation()
     {
-        // 先恢复所有飞入字母的透明度
+        // 恢复飞入字母透明度
         foreach (var letter in flyingLetters)
         {
             Graphic graphic = letter.GetComponent<Graphic>();
@@ -88,6 +98,7 @@ public class SplashAnimation : MonoBehaviour
                 graphic.color = c;
             }
         }
+
         // 飞入
         for (int i = 0; i < flyingLetters.Length; i++)
         {
@@ -104,6 +115,7 @@ public class SplashAnimation : MonoBehaviour
         }
 
         yield return new WaitForSeconds(0.5f);
+        yield return StartCoroutine(FadeOutAndLoad());
         SceneManager.LoadScene(mainMenuSceneName);
     }
 
@@ -120,10 +132,18 @@ public class SplashAnimation : MonoBehaviour
             yield return null;
         }
         rect.anchoredPosition = targetPos;
+
+        // 播放飞入到位音效
+        if (flyArriveSound != null && audioSource != null)
+            audioSource.PlayOneShot(flyArriveSound);
     }
 
     IEnumerator GlowIn(Graphic graphic, float duration)
     {
+        // 播放亮起音效
+        if (glowSound != null && audioSource != null)
+            audioSource.PlayOneShot(glowSound);
+
         Color startColor = graphic.color;
         startColor.a = 0f;
         graphic.color = startColor;
@@ -140,5 +160,31 @@ public class SplashAnimation : MonoBehaviour
         Color finalColor = graphic.color;
         finalColor.a = 1f;
         graphic.color = finalColor;
+    }
+
+    void Update()
+    {
+        // 点击跳过
+        if (Input.GetMouseButtonDown(0) || (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began))
+        {
+            StopAllCoroutines();
+            SceneManager.LoadScene(mainMenuSceneName);
+        }
+    }
+    IEnumerator FadeOutAndLoad()
+    {
+        float fadeDuration = 0.5f;
+        float startVolume = audioSource.volume;
+        float elapsed = 0f;
+
+        while (elapsed < fadeDuration)
+        {
+            elapsed += Time.deltaTime;
+            audioSource.volume = Mathf.Lerp(startVolume, 0f, elapsed / fadeDuration);
+            yield return null;
+        }
+
+        audioSource.volume = startVolume; // 恢复音量供下次使用
+        SceneManager.LoadScene(mainMenuSceneName);
     }
 }

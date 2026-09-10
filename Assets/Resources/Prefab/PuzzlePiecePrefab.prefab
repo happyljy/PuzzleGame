@@ -93,6 +93,8 @@ MonoBehaviour:
   currentRotation: 0
   isLocked: 0
   targetPosition: {x: 0, y: 0}
+  interactable: 1
+  lockSound: {fileID: 8300000, guid: a6eadddfd49c443469f47231862fdb69, type: 3}
 --- !u!114 &5228349880930378487
 MonoBehaviour:
   m_ObjectHideFlags: 0

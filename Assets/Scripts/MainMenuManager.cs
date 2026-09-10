@@ -16,6 +16,18 @@ using Random = UnityEngine.Random;
 public class MainMenuManager : MonoBehaviour
 {
     // ==================== UI 引用 ====================
+    [Header("设置面板")]
+    public GameObject settingsPanel;            // 设置面板
+    public Button settingsButton;               // 个人面板中的设置按钮
+    public Button settingsCloseButton;          // 设置面板关闭按钮
+    public Button stopBGMButton;                // 停止背景音乐按钮
+    public Slider bgmSlider;                    // 背景音乐音量滑块
+    public Slider sfxSlider;                    // 音效音量滑块
+
+    [Header("退出游戏")]
+    public Button quitGameButton;               // 退出游戏按钮
+    [Header("加载音效")]
+    public AudioClip loadingSound;   // 在 Inspector 中指定加载音效
 
     [Header("停止广播")]
     public Button stopBroadcastButton;
@@ -177,7 +189,32 @@ public class MainMenuManager : MonoBehaviour
     void Start()
     {
         LANShareManager.Instance.OnSharingStopped += HandleSharingStopped;
+        StartCoroutine(WaitForAssetBundle());
+        // 设置面板
+        settingsButton.onClick.AddListener(OpenSettingsPanel);
+        settingsCloseButton.onClick.AddListener(() => ShowPanel(profilePanel));
+        stopBGMButton.onClick.AddListener(ToggleBGM);
 
+        // 更新按钮文字（可选）
+        UpdateBGMButtonText();
+
+        // 音量滑块
+        bgmSlider.minValue = 0f;
+        bgmSlider.maxValue = 1f;
+        bgmSlider.value = SoundManager.Instance != null ? SoundManager.Instance.BGMVolume : 0.5f;
+        bgmSlider.onValueChanged.AddListener((v) => {
+            if (SoundManager.Instance != null) SoundManager.Instance.SetBGMVolume(v);
+        });
+
+        sfxSlider.minValue = 0f;
+        sfxSlider.maxValue = 1f;
+        sfxSlider.value = SoundManager.Instance != null ? SoundManager.Instance.SFXVolume : 1f;
+        sfxSlider.onValueChanged.AddListener((v) => {
+            if (SoundManager.Instance != null) SoundManager.Instance.SetSFXVolume(v);
+        });
+
+        // 退出游戏
+        quitGameButton.onClick.AddListener(QuitGame);
         stopBroadcastButton.onClick.AddListener(() => {
             LANShareManager.Instance.StopSharing();
             LANShareManager.Instance.DisconnectFromServer();
@@ -268,7 +305,7 @@ public class MainMenuManager : MonoBehaviour
         closeImagePanelButton.onClick.AddListener(() => ShowPanel(currentBasePanel ?? categoryScrollView));
 
         UpdateCoinDisplay();
-        GenerateCategoryButtons();
+       
         loadingPanel.SetActive(false);
 
         avatarSelectPanel.SetActive(false);
@@ -276,6 +313,7 @@ public class MainMenuManager : MonoBehaviour
         deviceListPanel.SetActive(false);
         remoteImagePanel.SetActive(false);
         sharedImagePanel.SetActive(false);
+        settingsPanel.SetActive(false);
     }
 
     void OnEnable()
@@ -283,7 +321,16 @@ public class MainMenuManager : MonoBehaviour
         UpdateCoinDisplay();
         UpdateProfileUI();
     }
+    IEnumerator WaitForAssetBundle()
+    {
+        while (AssetBundleManager.Instance == null || !AssetBundleManager.Instance.IsLoaded)
+            yield return null;
 
+        // AB 加载完成后再生成分类按钮
+        GenerateCategoryButtons();
+        UpdateCoinDisplay();
+        UpdateProfileUI();
+    }
     // ==================== 面板管理 ====================
     void ShowPanel(GameObject panelToShow)
     {
@@ -301,7 +348,8 @@ public class MainMenuManager : MonoBehaviour
         else if (panelToShow == imageSelectPanel || panelToShow == favoritesPanel ||
                  panelToShow == uploadManagePanel || panelToShow == avatarSelectPanel ||
                  panelToShow == shareSelectPanel || panelToShow == deviceListPanel ||
-                 panelToShow == remoteImagePanel || panelToShow == sharedImagePanel)
+                 panelToShow == remoteImagePanel || panelToShow == sharedImagePanel ||
+         panelToShow == settingsPanel)
         {
             HidePanelsAboveLayer2();
             categoryScrollView.SetActive(false);
@@ -315,7 +363,7 @@ public class MainMenuManager : MonoBehaviour
             deviceListPanel.SetActive(false);
             remoteImagePanel.SetActive(false);
             sharedImagePanel.SetActive(false);
-
+            settingsPanel.SetActive(false);
             if (panelToShow == imageSelectPanel) imageSelectPanel.SetActive(true);
             else if (panelToShow == favoritesPanel) favoritesPanel.SetActive(true);
             else if (panelToShow == uploadManagePanel) uploadManagePanel.SetActive(true);
@@ -324,7 +372,7 @@ public class MainMenuManager : MonoBehaviour
             else if (panelToShow == deviceListPanel) deviceListPanel.SetActive(true);
             else if (panelToShow == remoteImagePanel) remoteImagePanel.SetActive(true);
             else if (panelToShow == sharedImagePanel) sharedImagePanel.SetActive(true);
-
+            else if (panelToShow == settingsPanel) settingsPanel.SetActive(true);
             currentLayer2Panel = panelToShow;
             panelToShow.transform.SetAsLastSibling();
         }
@@ -358,6 +406,7 @@ public class MainMenuManager : MonoBehaviour
 
     void HideOverlayPanels()
     {
+        settingsPanel.SetActive(false);
         avatarSelectPanel.SetActive(false);
         imageSelectPanel.SetActive(false);
         favoritesPanel.SetActive(false);
@@ -376,6 +425,7 @@ public class MainMenuManager : MonoBehaviour
 
     void HidePanelsAboveLayer2()
     {
+        settingsPanel.SetActive(false);
         avatarSelectPanel.SetActive(false);
         shareSelectPanel.SetActive(false);
         deviceListPanel.SetActive(false);
@@ -394,14 +444,58 @@ public class MainMenuManager : MonoBehaviour
         nameInputPanel.SetActive(false);
         currentLayer4Panel = null;
     }
+    void OpenSettingsPanel()
+    {
+        // 同步滑块值（防止上次修改后未刷新）
+        if (SoundManager.Instance != null)
+        {
+            bgmSlider.value = SoundManager.Instance.BGMVolume;
+            sfxSlider.value = SoundManager.Instance.SFXVolume;
+        }
+        ShowPanel(settingsPanel);
+    }
 
+    void QuitGame()
+    {
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;   // 编辑器中停止运行
+#else
+    Application.Quit();                                // 打包后退出
+#endif
+    }
     void HidePanelsAboveLayer4()
     {
         nameInputPanel.SetActive(false);
     }
+    void ToggleBGM()
+    {
+        if (SoundManager.Instance == null) return;
 
+        if (SoundManager.Instance.IsBGMPlaying)
+        {
+            SoundManager.Instance.StopBGM();
+        }
+        else
+        {
+            SoundManager.Instance.PlayBGM();
+        }
+
+        UpdateBGMButtonText();
+    }
+
+    void UpdateBGMButtonText()
+    {
+        if (stopBGMButton == null) return;
+
+        Text label = stopBGMButton.GetComponentInChildren<Text>();
+        if (label == null) return;
+
+        bool isPlaying = SoundManager.Instance != null && SoundManager.Instance.IsBGMPlaying;
+        label.text = isPlaying ? "停止背景音乐" : "播放背景音乐";
+    }
     void HideAllPanels()
     {
+        settingsPanel.SetActive(false);
         avatarSelectPanel.SetActive(false);
         categoryScrollView.SetActive(false);
         profilePanel.SetActive(false);
@@ -508,7 +602,7 @@ public class MainMenuManager : MonoBehaviour
     IEnumerator UpdateCategoryPreview(Image previewImage, string category)
     {
         if (previewImage == null) yield break;
-        Sprite[] sprites = Resources.LoadAll<Sprite>("Art/" + category);
+        Sprite[] sprites = AssetBundleManager.Instance.GetCategorySprites(category);
         if (sprites.Length == 0) yield break;
 
         while (previewImage != null)
@@ -600,7 +694,7 @@ public class MainMenuManager : MonoBehaviour
         }
         else
         {
-            Sprite[] loadedSprites = Resources.LoadAll<Sprite>("Art/" + category);
+            Sprite[] loadedSprites = AssetBundleManager.Instance.GetCategorySprites(category);
             System.Array.Sort(loadedSprites, (a, b) => string.Compare(a.name, b.name));
             sprites.AddRange(loadedSprites);
             for (int i = 0; i < sprites.Count; i++) imageNames.Add(sprites[i].name);
@@ -1227,6 +1321,10 @@ public class MainMenuManager : MonoBehaviour
         PlayerPrefs.SetInt("SelectedImageIndex", selectedImageIndex);
         PlayerPrefs.Save();
 
+        // 播放加载音效
+        if (loadingSound != null && SoundManager.Instance != null)
+            SoundManager.Instance.PlayLoadingSound(loadingSound);
+
         loadingPanel.SetActive(true);
         loadingPanel.transform.SetAsLastSibling();
         if (loadingText != null) loadingText.text = "加载中...";
@@ -1254,6 +1352,11 @@ public class MainMenuManager : MonoBehaviour
         }
 
         if (loadingText != null) loadingText.text = "加载中... 100%";
+
+        // 停止加载音效
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.StopLoadingSound();
+
         asyncLoad.allowSceneActivation = true;
     }
 
@@ -1389,7 +1492,7 @@ public class MainMenuManager : MonoBehaviour
             int imageIndex;
             if (!int.TryParse(parts[1], out imageIndex)) continue;
 
-            Sprite[] sprites = Resources.LoadAll<Sprite>("Art/" + category);
+            Sprite[] sprites = AssetBundleManager.Instance.GetCategorySprites(category);
             System.Array.Sort(sprites, (a, b) => string.Compare(a.name, b.name));
             if (imageIndex < 0 || imageIndex >= sprites.Length) continue;
 

@@ -13,9 +13,9 @@ public static class GameDataManager
     // ==================== 基础配置 ====================
 
     // 分类列表（顺序需与主菜单按钮一致）
-    public static string[] Categories = { "1", "2", "3" };
+    public static string[] Categories = { "Kazimierz", "Kjerag", "RhodesIsland", "Ursus", "Victoria", "Yan" };
     // 对应分类的价格，0 表示初始已解锁（当前所有分类免费）
-    public static int[] CategoryPrices = { 0, 0, 0 };
+    public static int[] CategoryPrices = { 0, 0, 0 ,0,0,0};
 
     // 图片解锁设置
     public const int FreeImagesPerCategory = 5;   // 每个分类前5张图片免费
@@ -352,8 +352,7 @@ public static class GameDataManager
         List<string> allImages = new List<string>();
         foreach (string category in Categories)
         {
-            Sprite[] sprites = Resources.LoadAll<Sprite>("Art/" + category);
-            System.Array.Sort(sprites, (a, b) => string.Compare(a.name, b.name));
+            Sprite[] sprites = AssetBundleManager.Instance.GetCategorySprites(category);
             for (int i = 0; i < sprites.Length; i++)
                 allImages.Add(category + "_" + i);
         }

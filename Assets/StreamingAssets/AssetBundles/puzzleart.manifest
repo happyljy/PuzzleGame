@@ -1,0 +1,70 @@
+ManifestFileVersion: 0
+UnityVersion: 6000.2.1f1
+CRC: 1125740739
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: 3349b34db3fa06b36fc7f229b41bd221
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: bc9f87c7e64ff656997db0f2b2a91703
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: 4966cc4505b3eafd207842b95cc3dc26
+HashAppended: 0
+ClassTypes:
+- Class: 28
+  Script: {instanceID: 0}
+- Class: 213
+  Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers: []
+Assets:
+- Assets/PuzzleArt/Yan/Yan_1.png
+- Assets/PuzzleArt/Kazimierz/Kazimierz_5.png
+- Assets/PuzzleArt/Victoria/Victoria_6.png
+- Assets/PuzzleArt/Yan/Yan_0.png
+- Assets/PuzzleArt/RhodesIsland/RhodesIsland_7.png
+- Assets/PuzzleArt/RhodesIsland/RhodesIsland_3.png
+- Assets/PuzzleArt/Yan/Yan_3.png
+- Assets/PuzzleArt/RhodesIsland/RhodesIsland_4.png
+- Assets/PuzzleArt/Kjerag/Kjerag_2.png
+- Assets/PuzzleArt/Kjerag/Kjerag_5.png
+- Assets/PuzzleArt/Kjerag/Kjerag_1.png
+- Assets/PuzzleArt/Ursus/Ursus_3.png
+- Assets/PuzzleArt/Kazimierz/Kazimierz_7.png
+- Assets/PuzzleArt/Kazimierz/Kazimierz_0.png
+- Assets/PuzzleArt/Kjerag/Kjerag_6.png
+- Assets/PuzzleArt/Kazimierz/Kazimierz_4.png
+- Assets/PuzzleArt/Kazimierz/Kazimierz_6.png
+- Assets/PuzzleArt/RhodesIsland/RhodesIsland_5.png
+- Assets/PuzzleArt/Kazimierz/Kazimierz_2.png
+- Assets/PuzzleArt/Yan/Yan_5.png
+- Assets/PuzzleArt/Ursus/Ursus_6.png
+- Assets/PuzzleArt/Yan/Yan_4.png
+- Assets/PuzzleArt/Victoria/Victoria_0.png
+- Assets/PuzzleArt/Yan/Yan_6.png
+- Assets/PuzzleArt/Kjerag/Kjerag_3.png
+- Assets/PuzzleArt/Yan/Yan_7.png
+- Assets/PuzzleArt/RhodesIsland/RhodesIsland_6.png
+- Assets/PuzzleArt/Ursus/Ursus_1.png
+- Assets/PuzzleArt/Kazimierz/Kazimierz_3.png
+- Assets/PuzzleArt/Ursus/Ursus_5.png
+- Assets/PuzzleArt/Victoria/Victoria_3.png
+- Assets/PuzzleArt/Victoria/Victoria_2.png
+- Assets/PuzzleArt/Victoria/Victoria_4.png
+- Assets/PuzzleArt/RhodesIsland/RhodesIsland_1.png
+- Assets/PuzzleArt/Kjerag/Kjerag_0.png
+- Assets/PuzzleArt/Ursus/Ursus_7.png
+- Assets/PuzzleArt/Ursus/Ursus_0.png
+- Assets/PuzzleArt/Kjerag/Kjerag_4.png
+- Assets/PuzzleArt/Kjerag/Kjerag_7.png
+- Assets/PuzzleArt/Ursus/Ursus_4.png
+- Assets/PuzzleArt/Ursus/Ursus_2.png
+- Assets/PuzzleArt/Victoria/Victoria_7.png
+- Assets/PuzzleArt/Kazimierz/Kazimierz_1.png
+- Assets/PuzzleArt/Victoria/Victoria_5.png
+- Assets/PuzzleArt/Yan/Yan_2.png
+- Assets/PuzzleArt/RhodesIsland/RhodesIsland_2.png
+- Assets/PuzzleArt/Victoria/Victoria_1.png
+- Assets/PuzzleArt/RhodesIsland/RhodesIsland_0.png
+Dependencies: []

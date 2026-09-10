@@ -15,7 +15,9 @@ public class GameManager : MonoBehaviour
     public static GameManager Instance;
 
     // ==================== UI 引用 ====================
-
+    [Header("音效")]
+    public AudioClip victorySound;      // 胜利音效
+    public AudioClip dailyCompleteSound; // 每日拼图全部完成音效（可选）
     [Header("UI References")]
     public Button favoriteButton;
     public Button nextImageButton;
@@ -50,7 +52,9 @@ public class GameManager : MonoBehaviour
     [Header("Puzzle Settings")]
     public float pieceSize = 100f;
     public float spacingFactor = 1f;
-
+    // GameManager.cs
+    public int LockedCount => lockedCount;
+    public int TotalPieces => totalPieces;
     // ==================== 私有状态 ====================
 
     private bool isDailyPuzzle = false;
@@ -205,13 +209,13 @@ public class GameManager : MonoBehaviour
         }
         else
         {
-            string folderPath = "Art/" + selectedCategory;
-            allSprites = Resources.LoadAll<Sprite>(folderPath);
+            allSprites = AssetBundleManager.Instance.GetCategorySprites(selectedCategory);
             if (allSprites.Length == 0)
             {
-                Debug.LogError("没有找到图片: " + folderPath);
+                Debug.LogError("没有找到图片分类: " + selectedCategory);
                 return;
             }
+         
             System.Array.Sort(allSprites, (a, b) => string.Compare(a.name, b.name));
 
             if (selectedImageIndex >= 0 && selectedImageIndex < allSprites.Length)
@@ -443,7 +447,9 @@ public class GameManager : MonoBehaviour
         if (lockedCount >= totalPieces)
         {
             isVictory = true;
-
+            // 播放胜利音效
+            if (victorySound != null && SoundManager.Instance != null)
+                SoundManager.Instance.PlayPuzzleSound(victorySound);
             if (isDailyPuzzle)
             {
                 GameDataManager.SetDailyPuzzleImageCompleted(dailyPuzzleCurrentIndex, true);
@@ -453,6 +459,9 @@ public class GameManager : MonoBehaviour
 
                 if (completedCount >= GameDataManager.DailyPuzzleCount)
                 {
+                    // 每日拼图全部完成
+                    if (dailyCompleteSound != null && SoundManager.Instance != null)
+                        SoundManager.Instance.PlayPuzzleSound(dailyCompleteSound);
                     int dailyReward = 50;
                     GameDataManager.AddCoins(dailyReward);
                     GameDataManager.SetDailyPuzzleCompleted();

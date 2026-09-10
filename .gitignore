@@ -67,6 +67,9 @@ ExportedObj/
 # Unity3D generated file on crash reports
 sysinfo.txt
 
+# Unity 崩溃恢复临时文件夹（项目根目录）
+/_Recovery/
+
 # Mono auto generated files
 mono_crash.*
 

@@ -16,6 +16,8 @@ public class PuzzlePiece : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     [HideInInspector] public bool isLocked = false; // 是否已锁定（正确放置）
     [HideInInspector] public Vector2 targetPosition; // 正确的目标位置（拼图区域本地坐标）
     public bool interactable = true;               // 是否可交互（列表中为 false，拼图区域中为 true）
+    [Header("音效")]
+    public AudioClip lockSound;   // 碎片锁定音效
 
     // ==================== 私有字段 ====================
 
@@ -166,6 +168,13 @@ public class PuzzlePiece : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
         rectTransform.localRotation = Quaternion.identity;
         currentRotation = 0;
         GetComponent<Image>().color = new Color(1f, 0.8f, 0.8f, 1f); // 淡粉色
+                                                                     // 播放锁定音效
+                                                                     // 如果不是最后一块，播放锁定音效
+        if (GameManager.Instance.LockedCount < GameManager.Instance.TotalPieces - 1)
+        {
+            if (lockSound != null && SoundManager.Instance != null)
+                SoundManager.Instance.PlayPuzzleSound(lockSound);
+        }
         GameManager.Instance.CheckVictory();
     }
 
