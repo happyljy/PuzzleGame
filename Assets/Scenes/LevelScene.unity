@@ -2941,7 +2941,7 @@ MonoBehaviour:
   m_text: Cancel
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: dc36b3fdc14f47ebb36fd484a67e268a, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_sharedMaterial: {fileID: 2140032, guid: dc36b3fdc14f47ebb36fd484a67e268a, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -3006,7 +3006,7 @@ MonoBehaviour:
   m_margin: {x: 0, y: 0, z: 0, w: 0}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
-  m_hasFontAssetChanged: 1
+  m_hasFontAssetChanged: 0
   m_baseMaterial: {fileID: 0}
   m_maskOffset: {x: 0, y: 0, z: 0, w: 0}
 --- !u!222 &321073663
@@ -5214,7 +5214,7 @@ MonoBehaviour:
   m_text: Download
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: dc36b3fdc14f47ebb36fd484a67e268a, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_sharedMaterial: {fileID: 2140032, guid: dc36b3fdc14f47ebb36fd484a67e268a, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -5279,7 +5279,7 @@ MonoBehaviour:
   m_margin: {x: 0, y: 0, z: 0, w: 0}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
-  m_hasFontAssetChanged: 1
+  m_hasFontAssetChanged: 0
   m_baseMaterial: {fileID: 0}
   m_maskOffset: {x: 0, y: 0, z: 0, w: 0}
 --- !u!222 &541714440
@@ -5404,6 +5404,7 @@ RectTransform:
   - {fileID: 252991755}
   - {fileID: 209673844}
   - {fileID: 1462519992}
+  - {fileID: 1745255170}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -5466,17 +5467,17 @@ MonoBehaviour:
   uploadScrollContent: {fileID: 940974170}
   uploadCloseButton: {fileID: 429763471}
   addImageButton: {fileID: 1081557462}
-  dailyPuzzleButton: {fileID: 1102209601}
-  loadingPanel: {fileID: 1585262610}
-  loadingText: {fileID: 1758900743}
-  loadingSlider: {fileID: 1401776886}
-  confirmPanel: {fileID: 563325900}
-  confirmText: {fileID: 1895485173}
-  confirmYesButton: {fileID: 1894586903}
-  confirmNoButton: {fileID: 1331940213}
-  adStaminaButton: {fileID: 1985202114}
-  staminaText: {fileID: 1879877739}
-  staminaSlider: {fileID: 1388370860}
+  profilePanel: {fileID: 1834952298}
+  profileNameText: {fileID: 1200059090}
+  profileLevelText: {fileID: 1350656692}
+  experienceSlider: {fileID: 708009660}
+  favoritesButton: {fileID: 451236822}
+  nameInputPanel: {fileID: 1453498313}
+  nameInputField: {fileID: 1704924188}
+  nameConfirmButton: {fileID: 1812335991}
+  favoritesPanel: {fileID: 859218944}
+  favoritesScrollContent: {fileID: 2107665897}
+  favoritesCloseButton: {fileID: 1391757232}
   categoryScrollView: {fileID: 883233463}
   categoryScrollContent: {fileID: 403660199}
   categoryButtonPrefab: {fileID: 4543664418751139949, guid: e2b70f630ac536047a779852ae24bfeb, type: 3}
@@ -5490,25 +5491,27 @@ MonoBehaviour:
   easyButton: {fileID: 1791189225}
   normalButton: {fileID: 1725114979}
   hardButton: {fileID: 1043875467}
+  difficultyCancelButton: {fileID: 982719803}
   purchasePanel: {fileID: 1676869880}
   purchaseText: {fileID: 1266472268}
   confirmPurchaseButton: {fileID: 1331896174}
   cancelPurchaseButton: {fileID: 1585367848}
+  dailyPuzzleButton: {fileID: 1102209601}
+  loadingPanel: {fileID: 1585262610}
+  loadingText: {fileID: 1758900743}
+  loadingSlider: {fileID: 1401776886}
+  uploadDebugText: {fileID: 1745255171}
+  uploadDebugMaxLines: 80
+  confirmPanel: {fileID: 563325900}
+  confirmText: {fileID: 1895485173}
+  confirmYesButton: {fileID: 1894586903}
+  confirmNoButton: {fileID: 1331940213}
+  adStaminaButton: {fileID: 1985202114}
+  staminaText: {fileID: 1879877739}
+  staminaSlider: {fileID: 1388370860}
   coinText: {fileID: 63462563}
-  profilePanel: {fileID: 1834952298}
-  profileNameText: {fileID: 1200059090}
-  profileLevelText: {fileID: 1350656692}
-  experienceSlider: {fileID: 708009660}
-  favoritesButton: {fileID: 451236822}
-  nameInputPanel: {fileID: 1453498313}
-  nameInputField: {fileID: 1704924188}
-  nameConfirmButton: {fileID: 1812335991}
-  favoritesPanel: {fileID: 859218944}
-  favoritesScrollContent: {fileID: 2107665897}
-  favoritesCloseButton: {fileID: 1391757232}
   profileButton: {fileID: 1004967235}
   categoryButton: {fileID: 292835080}
-  difficultyCancelButton: {fileID: 982719803}
 --- !u!1 &560054381
 GameObject:
   m_ObjectHideFlags: 0
@@ -11424,7 +11427,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -258, y: 0}
+  m_AnchoredPosition: {x: -258, y: -250}
   m_SizeDelta: {x: 250, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1331940213
@@ -15267,6 +15270,85 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ButtonClickSound
   clickSound: {fileID: 8300000, guid: d668ef24c9598f142914093b7acbdb70, type: 3}
+--- !u!1 &1745255169
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1745255170}
+  - component: {fileID: 1745255172}
+  - component: {fileID: 1745255171}
+  m_Layer: 5
+  m_Name: Text (Legacy)
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &1745255170
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1745255169}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 548721523}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: -5.1116, y: 40.348938}
+  m_SizeDelta: {x: 693.9662, y: 1286.3022}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &1745255171
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1745255169}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5f7201a12d95ffc409449d95f23cf332, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
+  m_Material: {fileID: 0}
+  m_Color: {r: 0, g: 0, b: 0, a: 1}
+  m_RaycastTarget: 0
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_FontData:
+    m_Font: {fileID: 10102, guid: 0000000000000000e000000000000000, type: 0}
+    m_FontSize: 20
+    m_FontStyle: 0
+    m_BestFit: 0
+    m_MinSize: 2
+    m_MaxSize: 40
+    m_Alignment: 0
+    m_AlignByGeometry: 0
+    m_RichText: 1
+    m_HorizontalOverflow: 0
+    m_VerticalOverflow: 0
+    m_LineSpacing: 1
+  m_Text: 
+--- !u!222 &1745255172
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1745255169}
+  m_CullTransparentMesh: 1
 --- !u!1 &1758900742
 GameObject:
   m_ObjectHideFlags: 0
@@ -16567,7 +16649,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 258, y: 0}
+  m_AnchoredPosition: {x: 258, y: -250}
   m_SizeDelta: {x: 250, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1894586903
@@ -16699,8 +16781,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 121.61511}
-  m_SizeDelta: {x: 567.3063, y: 106.7691}
+  m_AnchoredPosition: {x: 0, y: 41.177612}
+  m_SizeDelta: {x: 567.3063, y: 411.2823}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1895485173
 MonoBehaviour:

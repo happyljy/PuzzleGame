@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
@@ -9,6 +10,13 @@ using Random = UnityEngine.Random;
 /// <summary>
 /// 游戏场景主管理器：负责拼图初始化、碎片生成、交互控制、
 /// 每日拼图逻辑、奖励结算、收藏、提示、缩放平移等所有功能。
+/// 
+/// 图片加载采用异步方式（ImageLoader.LoadSpriteFromFileAsync），
+/// 上传/共享分类的图片会在后台线程解码，避免主线程卡顿。
+/// 
+/// 同时包含：
+/// - 防重入：加载期间忽略新的加载请求。
+/// - 纹理释放：切换图片时释放上一次的上传/共享纹理。
 /// </summary>
 public class GameManager : MonoBehaviour
 {
@@ -21,21 +29,21 @@ public class GameManager : MonoBehaviour
     #region UI 引用与配置
 
     [Header("音效")]
-    public AudioClip victorySound;          // 胜利音效
-    public AudioClip dailyCompleteSound;    // 每日拼图全部完成音效
+    public AudioClip victorySound;
+    public AudioClip dailyCompleteSound;
 
     [Header("UI References")]
-    public Button favoriteButton;           // 收藏按钮
-    public Button nextImageButton;          // 下一张按钮
-    public Button prevImageButton;          // 上一张按钮
-    public Button backButton;               // 返回主菜单按钮
-    public Button hintButton;               // 提示按钮（按住显示原图）
-    public Button returnButton;             // 返回碎片按钮
-    public RectTransform listContent;       // 碎片列表 Content
-    public RectTransform puzzleArea;        // 拼图区域
-    public GameObject victoryPanel;         // 胜利面板
-    public GameObject piecePrefab;          // 碎片预制体
-    public Text rewardText;                 // 胜利面板奖励文字
+    public Button favoriteButton;
+    public Button nextImageButton;
+    public Button prevImageButton;
+    public Button backButton;
+    public Button hintButton;
+    public Button returnButton;
+    public RectTransform listContent;
+    public RectTransform puzzleArea;
+    public GameObject victoryPanel;
+    public GameObject piecePrefab;
+    public Text rewardText;
 
     [Header("确认弹窗")]
     public GameObject confirmPanel;
@@ -63,45 +71,43 @@ public class GameManager : MonoBehaviour
 
     #region 对外属性
 
-    /// <summary>已锁定的碎片数量（供 PuzzlePiece 访问）。</summary>
     public int LockedCount => lockedCount;
-
-    /// <summary>碎片总数（供 PuzzlePiece 访问）。</summary>
     public int TotalPieces => totalPieces;
-
-    /// <summary>是否处于多点触控状态。</summary>
     public bool IsMultiTouch => isMultiTouch;
 
     #endregion
 
     #region 私有状态
 
-    private bool isDailyPuzzle = false;         // 是否为每日拼图模式
-    private int currentImageIndex = -1;         // 当前实际使用的图片索引
-    private string selectedCategory;            // 当前分类
-    private int selectedImageIndex = -1;        // 用户选中的图片索引（-1 为随机）
-    private int gridSize = 2;                   // 难度（行列数），测试用 2，正式可 6/8/10
-    private float timeRemaining;                // 剩余时间
-    private bool isVictory = false;             // 是否已胜利
+    private bool isDailyPuzzle = false;
+    private int currentImageIndex = -1;
+    private string selectedCategory;
+    private int selectedImageIndex = -1;
+    private int gridSize = 2;
+    private float timeRemaining;
+    private bool isVictory = false;
 
-    private RectTransform puzzleContent;        // 拼图内容容器（碎片和网格的父物体）
-    private float currentZoom = 1f;             // 当前缩放倍数
-    private Vector2 contentOffset;              // 平移偏移量
+    private RectTransform puzzleContent;
+    private float currentZoom = 1f;
+    private Vector2 contentOffset;
     private float maxZoom = 2f;
     private float minZoom = 1f;
 
-    private Sprite[] allSprites;                // 当前分类下的所有图片（普通分类）
-    private Sprite chosenSprite;                // 当前选中的图片
-    private int rows, cols;                     // 实际行列数
-    private List<PuzzlePiece> activePieces = new List<PuzzlePiece>();   // 拼图区域中的碎片
-    private int totalPieces;                    // 总碎片数
-    private int lockedCount = 0;                // 已锁定碎片数
+    private Sprite[] allSprites;
+    private Sprite chosenSprite;
+    private int rows, cols;
+    private List<PuzzlePiece> activePieces = new List<PuzzlePiece>();
+    private int totalPieces;
+    private int lockedCount = 0;
 
-    private Image hintImage;                    // 提示图
-    private bool isMultiTouch = false;          // 是否多点触控
+    private Image hintImage;
+    private bool isMultiTouch = false;
 
-    private System.Action confirmAction;        // 确认弹窗回调
-    private int dailyPuzzleCurrentIndex = -1;   // 每日拼图当前索引
+    private System.Action confirmAction;
+    private int dailyPuzzleCurrentIndex = -1;
+
+    /// <summary>加载中标记，防止重复调用 StartNewGameAsync。</summary>
+    private bool isLoading = false;
 
     #endregion
 
@@ -184,7 +190,8 @@ public class GameManager : MonoBehaviour
             default: timeRemaining = easyTimeLimit; break;
         }
 
-        StartNewGame();
+        // 启动异步加载
+        StartCoroutine(StartNewGameAsync());
     }
 
     private void Update()
@@ -204,16 +211,38 @@ public class GameManager : MonoBehaviour
     #region 游戏初始化
 
     /// <summary>
-    /// 开始新拼图：加载图片、切割、生成碎片列表和网格。
+    /// 异步开始新拼图：包含防重入、旧纹理释放，然后加载图片并构建拼图。
     /// </summary>
-    private void StartNewGame()
+    private IEnumerator StartNewGameAsync()
+    {
+        // 防重入
+        if (isLoading)
+        {
+            Debug.Log("正在加载中，忽略本次请求");
+            yield break;
+        }
+        isLoading = true;
+
+        // 释放上一次的上传/共享图片纹理
+        ReleaseChosenSprite();
+
+        // 执行加载与构建（允许内部 yield break）
+        yield return LoadAndBuildPuzzle();
+
+        isLoading = false;
+    }
+
+    /// <summary>
+    /// 实际的加载与构建逻辑。
+    /// </summary>
+    private IEnumerator LoadAndBuildPuzzle()
     {
         // 体力检查（每日拼图不消耗）
         if (!isDailyPuzzle && GameDataManager.Stamina < GameDataManager.PuzzleStaminaCost)
         {
             Debug.Log("体力不足，无法开始拼图");
             BackToMenu();
-            return;
+            yield break;
         }
 
         // 重置状态
@@ -228,63 +257,59 @@ public class GameManager : MonoBehaviour
         lockedCount = 0;
 
         // ==================== 加载图片 ====================
+        Sprite loadedSprite = null;
+
         if (selectedCategory == GameDataManager.UploadCategory)
         {
-            // 上传分类：从 Uploads 文件夹加载
+            // 上传分类：异步从 Uploads 文件夹加载
             List<string> uploadFiles = GameDataManager.GetUploadedImages();
             if (selectedImageIndex < 0 || selectedImageIndex >= uploadFiles.Count)
             {
                 Debug.LogError("上传图片索引无效");
                 BackToMenu();
-                return;
+                yield break;
             }
-            string fileName = uploadFiles[selectedImageIndex];
-            string path = GameDataManager.GetUploadedImagePath(fileName);
-            if (!File.Exists(path))
+            string path = GameDataManager.GetUploadedImagePath(uploadFiles[selectedImageIndex]);
+            yield return ImageLoader.LoadSpriteFromFileAsync(path, (s) => loadedSprite = s);
+            if (loadedSprite == null)
             {
-                Debug.LogError("上传图片文件不存在: " + path);
+                Debug.LogError($"加载上传图片失败: {path}");
                 BackToMenu();
-                return;
+                yield break;
             }
-            byte[] bytes = File.ReadAllBytes(path);
-            Texture2D tex = new Texture2D(2, 2);
-            tex.LoadImage(bytes);
-            chosenSprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+            chosenSprite = loadedSprite;
             currentImageIndex = selectedImageIndex;
         }
         else if (selectedCategory == GameDataManager.SharedCategory)
         {
-            // 共享分类：从 Shared 文件夹加载
+            // 共享分类：异步从 Shared 文件夹加载
             List<string> sharedFiles = GameDataManager.GetSharedImages();
             if (selectedImageIndex < 0 || selectedImageIndex >= sharedFiles.Count)
             {
                 Debug.LogError("共享图片索引无效");
                 BackToMenu();
-                return;
+                yield break;
             }
-            string fileName = sharedFiles[selectedImageIndex];
-            string path = GameDataManager.GetSharedImagePath(fileName);
-            if (!File.Exists(path))
+            string path = GameDataManager.GetSharedImagePath(sharedFiles[selectedImageIndex]);
+            yield return ImageLoader.LoadSpriteFromFileAsync(path, (s) => loadedSprite = s);
+            if (loadedSprite == null)
             {
-                Debug.LogError("共享图片文件不存在: " + path);
+                Debug.LogError($"加载共享图片失败: {path}");
                 BackToMenu();
-                return;
+                yield break;
             }
-            byte[] bytes = File.ReadAllBytes(path);
-            Texture2D tex = new Texture2D(2, 2);
-            tex.LoadImage(bytes);
-            chosenSprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+            chosenSprite = loadedSprite;
             currentImageIndex = selectedImageIndex;
         }
         else
         {
-            // 普通分类：从 AssetBundle 加载
+            // 普通分类：从 AssetBundle 同步获取
             allSprites = AssetBundleManager.Instance.GetCategorySprites(selectedCategory);
             if (allSprites.Length == 0)
             {
                 Debug.LogError("没有找到图片分类: " + selectedCategory);
                 BackToMenu();
-                return;
+                yield break;
             }
 
             System.Array.Sort(allSprites, (a, b) => string.Compare(a.name, b.name));
@@ -302,6 +327,38 @@ public class GameManager : MonoBehaviour
             }
         }
 
+        // 图片已加载完成，构建拼图
+        BuildPuzzle();
+    }
+
+    /// <summary>
+    /// 释放上一次的上传/共享图片纹理。
+    /// 注意：AssetBundle 来源的 Sprite 由 AssetBundleManager 管理，不能销毁。
+    /// </summary>
+    private void ReleaseChosenSprite()
+    {
+        if (chosenSprite == null) return;
+
+        bool isFileBased = (selectedCategory == GameDataManager.UploadCategory ||
+                            selectedCategory == GameDataManager.SharedCategory);
+
+        if (isFileBased)
+        {
+            // 手动创建的 Sprite 及其纹理需要销毁
+            if (chosenSprite.texture != null)
+                Destroy(chosenSprite.texture);
+
+            Destroy(chosenSprite);
+        }
+
+        chosenSprite = null;
+    }
+
+    /// <summary>
+    /// 根据已加载的 chosenSprite 构建拼图区域、碎片和网格。
+    /// </summary>
+    private void BuildPuzzle()
+    {
         Texture2D texture = chosenSprite.texture;
 
         // 上传分类和共享分类不支持收藏
@@ -749,13 +806,13 @@ public class GameManager : MonoBehaviour
                 ShowConfirm("已经到最后一张，是否直接到第一张？", () =>
                 {
                     selectedImageIndex = 0;
-                    StartNewGame();
+                    StartCoroutine(StartNewGameAsync());
                 });
             }
             else
             {
                 selectedImageIndex = currentImageIndex + 1;
-                StartNewGame();
+                StartCoroutine(StartNewGameAsync());
             }
             return;
         }
@@ -777,13 +834,13 @@ public class GameManager : MonoBehaviour
                 ShowConfirm("已经到最后一张，是否直接到第一张？", () =>
                 {
                     selectedImageIndex = 0;
-                    StartNewGame();
+                    StartCoroutine(StartNewGameAsync());
                 });
             }
             else
             {
                 selectedImageIndex = currentImageIndex + 1;
-                StartNewGame();
+                StartCoroutine(StartNewGameAsync());
             }
             return;
         }
@@ -821,7 +878,7 @@ public class GameManager : MonoBehaviour
         }
 
         selectedImageIndex = found;
-        StartNewGame();
+        StartCoroutine(StartNewGameAsync());
     }
 
     /// <summary>
@@ -855,13 +912,13 @@ public class GameManager : MonoBehaviour
                 ShowConfirm("已经到第一张，是否直接到最后一张？", () =>
                 {
                     selectedImageIndex = uploadFiles.Count - 1;
-                    StartNewGame();
+                    StartCoroutine(StartNewGameAsync());
                 });
             }
             else
             {
                 selectedImageIndex = currentImageIndex - 1;
-                StartNewGame();
+                StartCoroutine(StartNewGameAsync());
             }
             return;
         }
@@ -883,13 +940,13 @@ public class GameManager : MonoBehaviour
                 ShowConfirm("已经到第一张，是否直接到最后一张？", () =>
                 {
                     selectedImageIndex = sharedFiles.Count - 1;
-                    StartNewGame();
+                    StartCoroutine(StartNewGameAsync());
                 });
             }
             else
             {
                 selectedImageIndex = currentImageIndex - 1;
-                StartNewGame();
+                StartCoroutine(StartNewGameAsync());
             }
             return;
         }
@@ -927,7 +984,7 @@ public class GameManager : MonoBehaviour
         }
 
         selectedImageIndex = found;
-        StartNewGame();
+        StartCoroutine(StartNewGameAsync());
     }
 
     /// <summary>
@@ -944,7 +1001,7 @@ public class GameManager : MonoBehaviour
         selectedImageIndex = int.Parse(parts[1]);
         gridSize = difficulties[index];
         dailyPuzzleCurrentIndex = index;
-        StartNewGame();
+        StartCoroutine(StartNewGameAsync());
     }
 
     #endregion
@@ -1083,6 +1140,8 @@ public class GameManager : MonoBehaviour
 
     private void BackToMenu()
     {
+        ReleaseChosenSprite();
+
         PlayerPrefs.SetInt("IsDailyPuzzle", 0);
         PlayerPrefs.Save();
         SceneManager.LoadScene("LevelScene");

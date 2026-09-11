@@ -8,9 +8,17 @@ using System.Text;
 using UnityEngine;
 
 /// <summary>
-/// 局域网分享管理器：负责设备发现、TCP 连接、文件传输。
-/// 服务端（分享方）：启动分享 -> 等待客户端连接 -> 选择要分享的图片 -> 发送就绪广播 -> 响应客户端下载请求。
-/// 客户端（接收方）：搜索设备 -> 连接设备 -> 手动选择下载图片到共享分类。
+/// 局域网分享管理器。
+///
+/// 通信协议：所有消息统一为 [1字节类型][4字节长度][payload]
+///   类型 0x01 = 文本（UTF-8）
+///   类型 0x02 = 文件（二进制）
+///
+/// 线程安全：
+///   - Log() 只入队，不调用任何 Unity API
+///   - Update() 在主线程出队，写 Debug.Log + UI
+///   - UDP/TCP 回调通过 EnqueueMainThread 调度
+///   - Unity API（persistentDataPath 等）在 Awake 缓存，供后台线程使用
 /// </summary>
 public class LANShareManager : MonoBehaviour
 {
@@ -22,52 +30,60 @@ public class LANShareManager : MonoBehaviour
 
     #region 常量
 
-    private const int DiscoveryPort = 8888;          // UDP 广播端口
-    private const int FileTransferPort = 5555;       // TCP 文件传输端口
-    private const float ConnectTimeoutSeconds = 3f;  // 连接超时时间
+    private const int DiscoveryPort = 8888;
+    private const int FileTransferPort = 5555;
+    private const int ConnectTimeoutMs = 3000;
+    private const float AutoStopSharingTimeout = 600f;
+    private const float ReadyBroadcastDuration = 120f;
+    private const float ReadyBroadcastInterval = 1.5f;
+
+    private const byte MSG_TEXT = 0x01;
+    private const byte MSG_FILE = 0x02;
+    private const int MaxPayloadSize = 16 * 1024 * 1024;
 
     #endregion
 
     #region 对外属性与事件
 
-    /// <summary>服务端：是否有客户端已连接。</summary>
     public bool ClientConnected => clientConnected;
-
-    /// <summary>客户端：是否已连接到服务端。</summary>
-    public bool ConnectedToServer => connectedClient != null && connectedClient.Connected;
-
-    /// <summary>客户端：最近一次连接的服务器 IP。</summary>
+    public bool ConnectedToServer => connectedClient != null && clientStream != null;
     public string LastConnectedServerIP { get; set; }
-
-    /// <summary>分享停止事件（服务端/客户端均可订阅）。</summary>
     public event Action OnSharingStopped;
 
     #endregion
 
     #region 私有字段
 
-    // UDP 客户端（服务端广播 / 客户端监听）
+    // ★ 缓存 Unity API（后台线程不能访问）
+    private string persistentDataPath;
+    private string uploadsDirectory;
+    private string sharedDirectory;
+
     private UdpClient broadcastUdpClient;
     private UdpClient discoveryUdpClient;
 
-    // 状态标记
     private bool isDiscovering = false;
     private bool isSharing = false;
     private bool isServerRunning = false;
 
-    // TCP 服务器与客户端
     private TcpListener tcpListener;
     private TcpClient connectedClient;
+    private NetworkStream clientStream;
 
-    // 分享数据
     private List<string> sharedFiles = new List<string>();
     private string deviceName;
 
-    // 客户端连接标记（volatile 保证跨线程可见性）
     private volatile bool clientConnected = false;
 
-    // 自动停止分享协程
     private Coroutine autoStopCoroutine;
+    private Coroutine readyBroadcastCoroutine;
+
+    // 调试
+    private readonly Queue<string> logQueue = new Queue<string>();
+    private readonly object logQueueLock = new object();
+    private readonly Queue<Action> mainThreadActions = new Queue<Action>();
+    private readonly object mainThreadActionsLock = new object();
+    private string lastLoggedBroadcastIP = "";
 
     #endregion
 
@@ -75,14 +91,19 @@ public class LANShareManager : MonoBehaviour
 
     private void Awake()
     {
-        if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
+        if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
         DontDestroyOnLoad(gameObject);
+
         deviceName = SystemInfo.deviceName;
+
+        // ★ 在主线程缓存 Unity API，供后台线程使用
+        persistentDataPath = Application.persistentDataPath;
+        uploadsDirectory = Path.Combine(persistentDataPath, "Uploads");
+        sharedDirectory = Path.Combine(persistentDataPath, "Shared");
+
+        Log($"LANShareManager 初始化，deviceName={deviceName}");
+        Log($"persistentDataPath = {persistentDataPath}");
     }
 
     private void OnDestroy()
@@ -93,71 +114,213 @@ public class LANShareManager : MonoBehaviour
         StopFileServer();
     }
 
+    private void Update()
+    {
+        // 1. 处理后台线程调度过来的主线程任务
+        while (true)
+        {
+            Action action = null;
+            lock (mainThreadActionsLock)
+            {
+                if (mainThreadActions.Count == 0) break;
+                action = mainThreadActions.Dequeue();
+            }
+            try { action?.Invoke(); }
+            catch (Exception e) { Debug.LogError($"[LAN] 主线程任务异常: {e}"); }
+        }
+
+        // 2. 日志出队，写 UI（主线程）
+        while (true)
+        {
+            string line = null;
+            lock (logQueueLock)
+            {
+                if (logQueue.Count == 0) break;
+                line = logQueue.Dequeue();
+            }
+            if (MainMenuManager.Instance != null)
+                MainMenuManager.Instance.UploadDebug(line);
+            else
+                Debug.Log(line);
+        }
+    }
+
+    #endregion
+
+    #region 协议实现
+
+    private static void SendText(NetworkStream stream, string text)
+    {
+        byte[] payload = Encoding.UTF8.GetBytes(text);
+        byte[] header = new byte[5];
+        header[0] = MSG_TEXT;
+        Buffer.BlockCopy(BitConverter.GetBytes(payload.Length), 0, header, 1, 4);
+        stream.Write(header, 0, 5);
+        stream.Write(payload, 0, payload.Length);
+        stream.Flush();
+    }
+
+    private static void SendFile(NetworkStream stream, byte[] data)
+    {
+        if (data == null) data = new byte[0];
+        byte[] header = new byte[5];
+        header[0] = MSG_FILE;
+        Buffer.BlockCopy(BitConverter.GetBytes(data.Length), 0, header, 1, 4);
+        stream.Write(header, 0, 5);
+        stream.Write(data, 0, data.Length);
+        stream.Flush();
+    }
+
+    /// <summary>
+    /// 读一条消息。失败时通过 reason 返回原因。
+    /// </summary>
+    private static bool ReceiveMessage(NetworkStream stream, out byte type, out byte[] payload, out string reason)
+    {
+        type = 0;
+        payload = null;
+        reason = null;
+
+        byte[] header = new byte[5];
+        int headerRead = ReadExact(stream, header, 5);
+        if (headerRead != 5)
+        {
+            reason = $"header 读取失败 ({headerRead}/5 字节)，对端可能已关闭";
+            return false;
+        }
+
+        type = header[0];
+        int len = BitConverter.ToInt32(header, 1);
+        if (len < 0 || len > MaxPayloadSize)
+        {
+            reason = $"非法长度 {len}";
+            return false;
+        }
+
+        payload = new byte[len];
+        int payloadRead = ReadExact(stream, payload, len);
+        if (payloadRead != len)
+        {
+            reason = $"payload 读取失败 ({payloadRead}/{len} 字节)";
+            return false;
+        }
+        return true;
+    }
+
+    private static int ReadExact(NetworkStream stream, byte[] buf, int count)
+    {
+        int total = 0;
+        while (total < count)
+        {
+            int read;
+            try { read = stream.Read(buf, total, count - total); }
+            catch { return total; }
+            if (read <= 0) return total;
+            total += read;
+        }
+        return total;
+    }
+
+    #endregion
+
+    #region 调试辅助（线程安全）
+
+    private void Log(string msg)
+    {
+        string line = $"[LAN] {msg}";
+        lock (logQueueLock)
+        {
+            if (logQueue.Count > 800) logQueue.Dequeue();
+            logQueue.Enqueue(line);
+        }
+    }
+
+    private void EnqueueMainThread(Action action)
+    {
+        if (action == null) return;
+        lock (mainThreadActionsLock) mainThreadActions.Enqueue(action);
+    }
+
     #endregion
 
     #region 分享方（服务器）
 
-    /// <summary>
-    /// 启动分享：开始 TCP 服务器并广播常规消息，等待客户端连接。
-    /// </summary>
     public void StartSharing()
     {
-        if (isSharing) return;
+        if (isSharing) { Log("已经在分享中，忽略"); return; }
         isSharing = true;
+
+        Log("========== 开始分享 ==========");
+        Log($"本机IP: {GetLocalIPAddress()}");
+        Log($"广播地址: {GetBroadcastAddress()}");
+        Log($"设备名: {deviceName}");
 
         StartFileServer();
 
-        broadcastUdpClient = new UdpClient();
-        broadcastUdpClient.EnableBroadcast = true;
+        try
+        {
+            broadcastUdpClient = new UdpClient();
+            broadcastUdpClient.EnableBroadcast = true;
+        }
+        catch (Exception e)
+        {
+            Log($"[错误] 创建广播 UdpClient 失败: {e.Message}");
+            return;
+        }
+
         InvokeRepeating(nameof(BroadcastPresence), 0f, 2f);
         clientConnected = false;
+        lastLoggedBroadcastIP = "";
 
         if (autoStopCoroutine != null) StopCoroutine(autoStopCoroutine);
-        autoStopCoroutine = StartCoroutine(AutoStopSharingAfterTimeout(60f));
+        autoStopCoroutine = StartCoroutine(AutoStopSharingAfterTimeout(AutoStopSharingTimeout));
 
-        Debug.Log($"开始分享，本机IP: {GetLocalIPAddress()}");
-        Debug.Log($"广播地址: {GetBroadcastAddress()}");
+        Log("分享已启动，等待客户端连接");
     }
 
-    /// <summary>
-    /// 广播常规发现消息（未就绪）。
-    /// </summary>
     private void BroadcastPresence()
     {
         if (broadcastUdpClient == null) return;
-
         string message = $"PUZZLE_SHARE|{deviceName}|{GetLocalIPAddress()}|{FileTransferPort}";
         byte[] data = Encoding.UTF8.GetBytes(message);
-
-        // 同时发送到子网广播和受限广播，提高被发现概率
         SendBroadcast(data, "子网广播");
         SendBroadcast(data, "受限广播", true);
-
-        Debug.Log($"广播: {message}");
+        if (lastLoggedBroadcastIP != GetBroadcastAddress())
+        {
+            lastLoggedBroadcastIP = GetBroadcastAddress();
+            Log($"开始广播: {message}");
+        }
     }
 
-    /// <summary>
-    /// 发送就绪广播（客户端收到后可以识别设备已就绪，但连接仍由客户端手动触发）。
-    /// </summary>
     public void NotifyClientsReady()
     {
-        if (!isSharing || broadcastUdpClient == null) return;
-
-        string message = $"PUZZLE_SHARE_READY|{deviceName}|{GetLocalIPAddress()}|{FileTransferPort}";
-        byte[] data = Encoding.UTF8.GetBytes(message);
-
-        SendBroadcast(data, "就绪广播(子网)");
-        SendBroadcast(data, "就绪广播(受限)", true);
-
-        Debug.Log($"发送就绪广播: {message}");
+        if (!isSharing) { Log("NotifyClientsReady: 未在分享中，忽略"); return; }
+        Log($"开始发送就绪广播（{ReadyBroadcastDuration} 秒）");
+        if (readyBroadcastCoroutine != null) StopCoroutine(readyBroadcastCoroutine);
+        readyBroadcastCoroutine = StartCoroutine(PeriodicReadyBroadcast(ReadyBroadcastDuration));
     }
 
-    /// <summary>
-    /// 发送广播数据到子网广播或受限广播地址。
-    /// </summary>
-    /// <param name="data">要发送的数据</param>
-    /// <param name="logTag">日志标签</param>
-    /// <param name="useLimitedBroadcast">是否使用受限广播地址（255.255.255.255）</param>
+    private IEnumerator PeriodicReadyBroadcast(float duration)
+    {
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            SendReadyBroadcastOnce();
+            yield return new WaitForSeconds(ReadyBroadcastInterval);
+            elapsed += ReadyBroadcastInterval;
+        }
+        readyBroadcastCoroutine = null;
+        Log("就绪广播发送结束");
+    }
+
+    private void SendReadyBroadcastOnce()
+    {
+        if (!isSharing || broadcastUdpClient == null) return;
+        string message = $"PUZZLE_SHARE_READY|{deviceName}|{GetLocalIPAddress()}|{FileTransferPort}";
+        byte[] data = Encoding.UTF8.GetBytes(message);
+        SendBroadcast(data, "就绪广播(子网)");
+        SendBroadcast(data, "就绪广播(受限)", true);
+    }
+
     private void SendBroadcast(byte[] data, string logTag, bool useLimitedBroadcast = false)
     {
         try
@@ -167,39 +330,22 @@ public class LANShareManager : MonoBehaviour
                 : new IPEndPoint(IPAddress.Parse(GetBroadcastAddress()), DiscoveryPort);
             broadcastUdpClient.Send(data, data.Length, ep);
         }
-        catch (Exception e)
-        {
-            Debug.LogWarning($"{logTag}发送失败: {e.Message}");
-        }
+        catch (Exception e) { Log($"[错误] {logTag} 发送失败: {e.Message}"); }
     }
 
-    /// <summary>
-    /// 停止广播（只停止广播，不停止 TCP 服务器）。
-    /// </summary>
     public void StopBroadcast()
     {
         CancelInvoke(nameof(BroadcastPresence));
-
-        if (broadcastUdpClient != null)
-        {
-            broadcastUdpClient.Close();
-            broadcastUdpClient = null;
-        }
-
-        if (autoStopCoroutine != null)
-        {
-            StopCoroutine(autoStopCoroutine);
-            autoStopCoroutine = null;
-        }
-
-        Debug.Log("广播已停止");
+        if (readyBroadcastCoroutine != null) { StopCoroutine(readyBroadcastCoroutine); readyBroadcastCoroutine = null; }
+        if (broadcastUdpClient != null) { try { broadcastUdpClient.Close(); } catch { } broadcastUdpClient = null; }
+        if (autoStopCoroutine != null) { StopCoroutine(autoStopCoroutine); autoStopCoroutine = null; }
+        Log("广播已停止");
     }
 
-    /// <summary>
-    /// 停止分享（停止广播和 TCP 服务器）。
-    /// </summary>
     public void StopSharing()
     {
+        if (!isSharing && broadcastUdpClient == null && tcpListener == null) return;
+        Log("========== 停止分享 ==========");
         isSharing = false;
         StopBroadcast();
         StopFileServer();
@@ -207,201 +353,270 @@ public class LANShareManager : MonoBehaviour
         OnSharingStopped?.Invoke();
     }
 
-    /// <summary>
-    /// 60 秒内没有客户端连接则自动停止分享。
-    /// </summary>
     private IEnumerator AutoStopSharingAfterTimeout(float timeout)
     {
         yield return new WaitForSeconds(timeout);
-        if (!clientConnected)
+        if (!clientConnected && isSharing)
         {
-            Debug.Log("分享超时，自动停止");
+            Log("分享超时，自动停止");
             StopSharing();
         }
     }
 
-    /// <summary>
-    /// 设置要分享的文件列表（由 UI 调用）。
-    /// </summary>
     public void SetSharedFiles(List<string> files)
     {
-        sharedFiles = files;
+        sharedFiles = files != null ? new List<string>(files) : new List<string>();
+        Log($"[服务端] 已设置共享文件列表，共 {sharedFiles.Count} 个:");
+        foreach (var f in sharedFiles) Log($"[服务端]   - {f}");
     }
 
     #endregion
 
     #region 发现方（客户端）
 
-    /// <summary>
-    /// 开始发现设备。
-    /// </summary>
-    /// <param name="onDeviceFound">回调参数：设备名, IP, 端口, 是否就绪广播</param>
     public void StartDiscovery(Action<string, string, int, bool> onDeviceFound)
     {
-        if (isDiscovering) return;
-        isDiscovering = true;
+        if (isDiscovering && discoveryUdpClient != null)
+        {
+            Log("已经在监听广播，跳过重复启动");
+            return;
+        }
+        Log("========== 开始发现设备 ==========");
+        StopDiscovery();
 
-        discoveryUdpClient = new UdpClient(DiscoveryPort);
-        discoveryUdpClient.BeginReceive(OnDiscoveryReceive, new object[] { discoveryUdpClient, onDeviceFound });
-        Debug.Log($"开始发现设备，监听端口 {DiscoveryPort}");
+        try
+        {
+            isDiscovering = true;
+            discoveryUdpClient = new UdpClient(DiscoveryPort);
+            discoveryUdpClient.BeginReceive(OnDiscoveryReceive,
+                new object[] { discoveryUdpClient, onDeviceFound });
+            Log($"UDP 监听已启动，端口 {DiscoveryPort}");
+        }
+        catch (Exception e)
+        {
+            Log($"[错误] 启动发现失败: {e.Message}");
+            isDiscovering = false;
+            if (discoveryUdpClient != null) { try { discoveryUdpClient.Close(); } catch { } discoveryUdpClient = null; }
+        }
     }
 
-    /// <summary>
-    /// 收到 UDP 广播后的回调。
-    /// </summary>
     private void OnDiscoveryReceive(IAsyncResult ar)
     {
         object[] args = (object[])ar.AsyncState;
         UdpClient client = (UdpClient)args[0];
         Action<string, string, int, bool> callback = (Action<string, string, int, bool>)args[1];
 
-        IPEndPoint remoteEP = new IPEndPoint(IPAddress.Any, 0);
-        byte[] data = client.EndReceive(ar, ref remoteEP);
-        string message = Encoding.UTF8.GetString(data);
-        Debug.Log($"收到数据: '{message}' 来自 {remoteEP}");
-
-        if (message.StartsWith("PUZZLE_SHARE_READY|"))
+        try
         {
-            string[] parts = message.Split('|');
-            if (parts.Length == 4)
-                callback?.Invoke(parts[1], parts[2], int.Parse(parts[3]), true);
-        }
-        else if (message.StartsWith("PUZZLE_SHARE|"))
-        {
-            string[] parts = message.Split('|');
-            if (parts.Length == 4)
-                callback?.Invoke(parts[1], parts[2], int.Parse(parts[3]), false);
-        }
+            IPEndPoint remoteEP = new IPEndPoint(IPAddress.Any, 0);
+            byte[] data = client.EndReceive(ar, ref remoteEP);
+            string message = Encoding.UTF8.GetString(data);
+            Log($"[接收广播] 来自 {remoteEP}: {message}");
 
-        try { client.BeginReceive(OnDiscoveryReceive, ar); } catch { }
+            if (message.StartsWith("PUZZLE_SHARE_READY|"))
+            {
+                string[] parts = message.Split('|');
+                if (parts.Length == 4)
+                {
+                    string devName = parts[1];
+                    string ip = parts[2];
+                    int port = int.Parse(parts[3]);
+                    EnqueueMainThread(() => callback?.Invoke(devName, ip, port, true));
+                }
+            }
+            else if (message.StartsWith("PUZZLE_SHARE|"))
+            {
+                string[] parts = message.Split('|');
+                if (parts.Length == 4)
+                {
+                    string devName = parts[1];
+                    string ip = parts[2];
+                    int port = int.Parse(parts[3]);
+                    EnqueueMainThread(() => callback?.Invoke(devName, ip, port, false));
+                }
+            }
+        }
+        catch (ObjectDisposedException) { }
+        catch (Exception e) { Log($"[错误] 接收广播异常: {e.Message}"); }
+
+        if (isDiscovering && discoveryUdpClient != null)
+        {
+            try { client.BeginReceive(OnDiscoveryReceive, ar); }
+            catch (ObjectDisposedException) { }
+            catch (Exception e) { Log($"[错误] 重新监听失败: {e.Message}"); }
+        }
     }
 
-    /// <summary>
-    /// 停止发现设备。
-    /// </summary>
     public void StopDiscovery()
     {
+        if (!isDiscovering && discoveryUdpClient == null) return;
+        Log("停止发现设备");
         isDiscovering = false;
-        if (discoveryUdpClient != null)
-        {
-            discoveryUdpClient.Close();
-            discoveryUdpClient = null;
-        }
+        if (discoveryUdpClient != null) { try { discoveryUdpClient.Close(); } catch { } discoveryUdpClient = null; }
     }
 
     #endregion
 
     #region TCP 服务器
 
-    /// <summary>
-    /// 启动 TCP 服务器，开始接受客户端连接。
-    /// </summary>
     private void StartFileServer()
-    {
-        tcpListener = new TcpListener(IPAddress.Any, FileTransferPort);
-        tcpListener.Start();
-        isServerRunning = true;
-        tcpListener.BeginAcceptTcpClient(OnClientConnected, null);
-    }
-
-    /// <summary>
-    /// 客户端连接成功后的回调。
-    /// </summary>
-    private void OnClientConnected(IAsyncResult ar)
-    {
-        if (!isServerRunning) return;
-
-        TcpClient client = tcpListener.EndAcceptTcpClient(ar);
-        clientConnected = true;
-
-        // 有客户端连接后取消自动停止
-        if (autoStopCoroutine != null)
-        {
-            StopCoroutine(autoStopCoroutine);
-            autoStopCoroutine = null;
-        }
-
-        // 在后台线程处理该客户端的请求
-        List<string> filesToShare = sharedFiles.Count > 0 ? sharedFiles : GameDataManager.GetUploadedImages();
-        System.Threading.Tasks.Task.Run(() => HandleClient(client, filesToShare));
-
-        // 继续接受下一个客户端
-        tcpListener.BeginAcceptTcpClient(OnClientConnected, null);
-    }
-
-    /// <summary>
-    /// 处理客户端请求（LIST 获取列表 / GET 下载文件）。
-    /// </summary>
-    private void HandleClient(TcpClient client, List<string> files)
     {
         try
         {
-            NetworkStream stream = client.GetStream();
-            StreamReader reader = new StreamReader(stream, Encoding.UTF8);
-            StreamWriter writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
+            tcpListener = new TcpListener(IPAddress.Any, FileTransferPort);
+            tcpListener.Start();
+            isServerRunning = true;
+            tcpListener.BeginAcceptTcpClient(OnClientConnected, null);
+            Log($"TCP 服务器已启动，监听端口 {FileTransferPort}");
+        }
+        catch (Exception e)
+        {
+            Log($"[错误] TCP 服务器启动失败: {e.Message}");
+            isServerRunning = false;
+            tcpListener = null;
+        }
+    }
 
-            while (client.Connected)
+    private void OnClientConnected(IAsyncResult ar)
+    {
+        if (!isServerRunning) return;
+        TcpClient client = null;
+        try { client = tcpListener.EndAcceptTcpClient(ar); }
+        catch (Exception e) { Log($"[错误] EndAcceptTcpClient 异常: {e.Message}"); return; }
+
+        try { client.NoDelay = true; } catch { }
+
+        clientConnected = true;
+        string remoteInfo = client.Client != null ? client.Client.RemoteEndPoint.ToString() : "unknown";
+        Log($"[服务端] 客户端已连接: {remoteInfo}");
+
+        TcpClient capturedClient = client;
+        EnqueueMainThread(() =>
+        {
+            if (autoStopCoroutine != null)
             {
-                string request = reader.ReadLine();
-                if (request == null) break;
+                StopCoroutine(autoStopCoroutine);
+                autoStopCoroutine = null;
+                Log("[服务端] 已取消自动停止协程");
+            }
+
+            System.Threading.Tasks.Task.Run(() => HandleClient(capturedClient));
+
+            if (isServerRunning && tcpListener != null)
+            {
+                try { tcpListener.BeginAcceptTcpClient(OnClientConnected, null); }
+                catch (Exception e) { Log($"[错误] 继续接受连接失败: {e.Message}"); }
+            }
+        });
+    }
+
+    private void HandleClient(TcpClient client)
+    {
+        Log("[服务端] ========== 客户端会话开始 ==========");
+        Log($"[服务端] client.Connected={client.Connected}");
+
+        NetworkStream stream = null;
+        int loopCount = 0;
+
+        // ★ 使用缓存的目录，避免在后台线程调用 Application.persistentDataPath
+        string uploadsDir = uploadsDirectory;
+
+        try
+        {
+            stream = client.GetStream();
+            Log("[服务端] 已取得 NetworkStream，进入 while(true) 循环");
+
+            while (true)
+            {
+                loopCount++;
+                Log($"[服务端] ---- 第 {loopCount} 次 ReceiveMessage 开始 ----");
+                Log($"[服务端] client.Connected={client.Connected}");
+
+                byte msgType;
+                byte[] payload;
+                string reason;
+                bool ok = ReceiveMessage(stream, out msgType, out payload, out reason);
+                Log($"[服务端] ReceiveMessage 返回 ok={ok}, reason={reason ?? "null"}");
+
+                if (!ok)
+                {
+                    Log($"[服务端] 读消息失败，准备 break");
+                    break;
+                }
+
+                Log($"[服务端] 收到消息 type={msgType}, payloadLen={(payload?.Length ?? -1)}");
+
+                if (msgType != MSG_TEXT)
+                {
+                    Log("[服务端] 非文本消息，忽略");
+                    continue;
+                }
+
+                string request = Encoding.UTF8.GetString(payload);
+                Log($"[服务端] 请求内容: {request}");
 
                 if (request == "LIST")
                 {
-                    List<string> filesToSend = sharedFiles.Count > 0 ? sharedFiles : files;
-                    string listJson = JsonUtility.ToJson(new StringListWrapper(filesToSend));
-                    writer.WriteLine(listJson);
-                    Debug.Log($"发送文件列表，共 {filesToSend.Count} 张图片");
+                    List<string> filesToSend = (sharedFiles != null && sharedFiles.Count > 0)
+                        ? new List<string>(sharedFiles)
+                        : new List<string>();
+
+                    string json = JsonUtility.ToJson(new StringListWrapper(filesToSend));
+                    Log($"[服务端] 准备发送列表 ({filesToSend.Count} 个)");
+                    SendText(stream, json);
+                    Log("[服务端] 列表已发送");
                 }
                 else if (request.StartsWith("GET|"))
                 {
-                    HandleFileRequest(stream, request.Substring(4));
+                    string fileName = request.Substring(4);
+                    Log($"[服务端] 下载请求: {fileName}");
+
+                    string filePath = Path.Combine(uploadsDir, fileName);
+                    Log($"[服务端] 文件路径: {filePath}");
+
+                    bool exists = File.Exists(filePath);
+                    Log($"[服务端] 文件存在: {exists}");
+
+                    if (exists)
+                    {
+                        byte[] data = File.ReadAllBytes(filePath);
+                        Log($"[服务端] 准备发送 {data.Length} 字节");
+                        SendFile(stream, data);
+                        Log("[服务端] 文件已发送");
+                    }
+                    else
+                    {
+                        Log("[服务端] 文件不存在，发送 0 字节");
+                        SendFile(stream, new byte[0]);
+                    }
+                }
+                else
+                {
+                    Log($"[服务端] 未知命令: {request}");
                 }
             }
         }
         catch (Exception e)
         {
-            Debug.LogWarning($"处理客户端请求出错: {e.Message}");
+            Log($"[错误] HandleClient 异常: {e.Message}\n{e.StackTrace}");
         }
         finally
         {
+            Log($"[服务端] 进入 finally（loopCount={loopCount}）");
+            try { if (stream != null) stream.Close(); } catch { }
             try { client.Close(); } catch { }
+            Log("[服务端] ========== 客户端会话结束 ==========");
         }
     }
 
-    /// <summary>
-    /// 处理单个文件下载请求。
-    /// </summary>
-    private void HandleFileRequest(NetworkStream stream, string fileName)
-    {
-        string filePath = Path.Combine(Application.persistentDataPath, "Uploads", fileName);
-
-        if (!File.Exists(filePath))
-        {
-            stream.Write(BitConverter.GetBytes(0), 0, 4);
-            stream.Flush();
-            Debug.LogWarning($"请求的文件不存在: {filePath}");
-            return;
-        }
-
-        byte[] fileData = File.ReadAllBytes(filePath);
-        byte[] lengthBytes = BitConverter.GetBytes(fileData.Length);
-        stream.Write(lengthBytes, 0, 4);
-        stream.Write(fileData, 0, fileData.Length);
-        stream.Flush();
-
-        Debug.Log($"发送图片: {fileName} ({fileData.Length} bytes)");
-    }
-
-    /// <summary>
-    /// 停止 TCP 服务器。
-    /// </summary>
     private void StopFileServer()
     {
         isServerRunning = false;
         if (tcpListener != null)
         {
-            tcpListener.Stop();
+            try { tcpListener.Stop(); } catch { }
             tcpListener = null;
+            Log("TCP 服务器已停止");
         }
     }
 
@@ -409,174 +624,214 @@ public class LANShareManager : MonoBehaviour
 
     #region TCP 客户端
 
-    /// <summary>
-    /// 连接到服务端（带 3 秒超时）。
-    /// </summary>
     public void ConnectToServer(string serverIP, int port)
     {
-        if (connectedClient != null && connectedClient.Connected) return;
+        Log($"========== 尝试连接服务器 {serverIP}:{port} ==========");
+
+        if (connectedClient != null && clientStream != null)
+        {
+            Log("已经连接，忽略");
+            return;
+        }
+
+        DisconnectFromServer();
 
         TcpClient client = new TcpClient();
         try
         {
             IAsyncResult result = client.BeginConnect(serverIP, port, null, null);
-            bool success = result.AsyncWaitHandle.WaitOne(3000); // 最多等待 3 秒
+            bool success = result.AsyncWaitHandle.WaitOne(ConnectTimeoutMs);
 
             if (!success)
             {
-                client.Close();
-                Debug.LogError($"连接超时: {serverIP}:{port}");
+                try { client.Close(); } catch { }
+                Log($"[错误] 连接超时: {serverIP}:{port}");
                 return;
             }
 
             client.EndConnect(result);
+            try { client.NoDelay = true; } catch { }
+
             connectedClient = client;
+            clientStream = connectedClient.GetStream();
             LastConnectedServerIP = serverIP;
-            Debug.Log($"已连接到 {serverIP}:{port}");
+
+            Log($"连接成功: {serverIP}:{port}");
         }
         catch (Exception e)
         {
-            Debug.LogError($"连接失败: {e.Message}");
-            client.Close();
+            Log($"[错误] 连接失败: {e.Message}");
+            try { client.Close(); } catch { }
+            connectedClient = null;
+            clientStream = null;
         }
     }
 
-    /// <summary>
-    /// 断开与服务端的连接。
-    /// </summary>
     public void DisconnectFromServer()
     {
-        if (connectedClient != null)
-        {
-            connectedClient.Close();
-            connectedClient = null;
-            LastConnectedServerIP = null;
-            Debug.Log("已断开连接");
-        }
+        if (clientStream != null) { try { clientStream.Close(); } catch { } clientStream = null; }
+        if (connectedClient != null) { try { connectedClient.Close(); } catch { } connectedClient = null; }
+        // ★ 保留 LastConnectedServerIP 用于重连
     }
 
-    /// <summary>
-    /// 请求服务端的图片列表。
-    /// </summary>
+    private bool EnsureClientConnected()
+    {
+        if (clientStream != null)
+        {
+            try
+            {
+                if (clientStream.CanWrite && clientStream.CanRead) return true;
+            }
+            catch { }
+        }
+
+        string lastIP = LastConnectedServerIP;
+        if (string.IsNullOrEmpty(lastIP))
+        {
+            Log("[错误] 缺少服务器 IP，无法重连");
+            return false;
+        }
+
+        Log($"客户端连接不可用，尝试重连 {lastIP}:{FileTransferPort}");
+        DisconnectFromServer();
+        ConnectToServer(lastIP, FileTransferPort);
+        return connectedClient != null && clientStream != null;
+    }
+
     public void DownloadImageList(Action<List<string>> onListReceived)
     {
-        if (!ConnectedToServer)
+        Log("========== 请求远程图片列表 ==========");
+
+        if (!EnsureClientConnected())
         {
-            Debug.LogError("未连接到服务器");
+            onListReceived?.Invoke(new List<string>());
             return;
         }
 
         try
         {
-            NetworkStream stream = connectedClient.GetStream();
-            StreamWriter writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
-            writer.WriteLine("LIST");
+            SendText(clientStream, "LIST");
+            Log("已发送 LIST");
 
-            StreamReader reader = new StreamReader(stream, Encoding.UTF8);
-            string json = reader.ReadLine();
-
-            if (string.IsNullOrEmpty(json))
+            byte type;
+            byte[] payload;
+            string reason;
+            if (!ReceiveMessage(clientStream, out type, out payload, out reason))
             {
-                Debug.LogError("服务器返回的图片列表为空");
+                Log($"[错误] 读取列表响应失败: {reason}");
+                DisconnectFromServer();
                 onListReceived?.Invoke(new List<string>());
                 return;
             }
 
-            StringListWrapper wrapper = JsonUtility.FromJson<StringListWrapper>(json);
-            onListReceived?.Invoke(wrapper?.items ?? new List<string>());
+            if (type != MSG_TEXT)
+            {
+                Log($"[错误] 期望 TEXT，收到 type={type}");
+                onListReceived?.Invoke(new List<string>());
+                return;
+            }
+
+            string json = Encoding.UTF8.GetString(payload);
+            Log($"收到响应: {json}");
+
+            var wrapper = JsonUtility.FromJson<StringListWrapper>(json);
+            List<string> result = wrapper?.items ?? new List<string>();
+            Log($"解析成功，共 {result.Count} 个文件");
+            onListReceived?.Invoke(result);
         }
         catch (Exception e)
         {
-            Debug.LogError($"获取远程图片列表失败: {e.Message}");
+            Log($"[错误] 获取列表失败: {e.Message}");
+            DisconnectFromServer();
             onListReceived?.Invoke(new List<string>());
         }
     }
 
-    /// <summary>
-    /// 下载单个图片（保存到 Uploads 文件夹）。
-    /// </summary>
     public void DownloadImage(string fileName, Action<string> onDownloaded)
     {
         DownloadImageInternal(fileName, false, onDownloaded);
     }
 
-    /// <summary>
-    /// 下载单个图片（保存到 Shared 文件夹）。
-    /// </summary>
     public void DownloadImageToShared(string fileName, Action<string> onDownloaded)
     {
         DownloadImageInternal(fileName, true, onDownloaded);
     }
 
-    /// <summary>
-    /// 下载图片的内部实现，根据 saveToShared 决定保存目录。
-    /// </summary>
     private void DownloadImageInternal(string fileName, bool saveToShared, Action<string> onDownloaded)
     {
-        if (!ConnectedToServer)
+        Log($"========== 下载: {fileName} ==========");
+
+        // 第一次尝试
+        if (TryDownloadOnce(fileName, saveToShared, onDownloaded)) return;
+
+        // 失败后重连一次
+        Log("首次下载失败，重连后再试");
+        DisconnectFromServer();
+
+        if (!EnsureClientConnected())
         {
-            Debug.LogError("未连接到服务器");
+            Log("[错误] 重连失败，放弃");
             return;
         }
 
+        if (!TryDownloadOnce(fileName, saveToShared, onDownloaded))
+        {
+            Log("[错误] 重试仍失败");
+        }
+    }
+
+    private bool TryDownloadOnce(string fileName, bool saveToShared, Action<string> onDownloaded)
+    {
+        if (clientStream == null) return false;
+
         try
         {
-            NetworkStream stream = connectedClient.GetStream();
-            StreamWriter writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
-            writer.WriteLine($"GET|{fileName}");
+            SendText(clientStream, $"GET|{fileName}");
+            Log($"已发送 GET|{fileName}");
 
-            // 读取文件长度（前 4 字节）
-            byte[] lengthBytes = new byte[4];
-            int bytesRead = 0;
-            while (bytesRead < 4)
+            byte type;
+            byte[] payload;
+            string reason;
+            if (!ReceiveMessage(clientStream, out type, out payload, out reason))
             {
-                int read = stream.Read(lengthBytes, bytesRead, 4 - bytesRead);
-                if (read <= 0)
-                    throw new IOException("服务器在发送文件长度前关闭了连接");
-                bytesRead += read;
+                Log($"[错误] 读响应失败: {reason}");
+                return false;
             }
 
-            int fileLength = BitConverter.ToInt32(lengthBytes, 0);
-            if (fileLength <= 0)
+            if (type != MSG_FILE)
             {
-                Debug.LogWarning($"服务器没有返回有效文件: {fileName}");
-                return;
+                Log($"[错误] 期望 FILE，收到 type={type}");
+                return false;
             }
 
-            // 保存文件
-            string targetDir = saveToShared
-                ? Path.Combine(Application.persistentDataPath, "Shared")
-                : Path.Combine(Application.persistentDataPath, "Uploads");
+            if (payload == null || payload.Length == 0)
+            {
+                Log("[错误] 服务端返回 0 字节");
+                return false;
+            }
+
+            // ★ 使用缓存目录，避免调用 Application.persistentDataPath
+            string targetDir = saveToShared ? sharedDirectory : uploadsDirectory;
             Directory.CreateDirectory(targetDir);
             string destPath = Path.Combine(targetDir, fileName);
+            File.WriteAllBytes(destPath, payload);
+            Log($"文件已保存: {destPath}");
 
-            using (FileStream fs = File.Create(destPath))
+            string fn = fileName;
+            bool s = saveToShared;
+            EnqueueMainThread(() =>
             {
-                byte[] buffer = new byte[81920];
-                int totalReceived = 0;
-                while (totalReceived < fileLength)
-                {
-                    int read = stream.Read(buffer, 0, Math.Min(buffer.Length, fileLength - totalReceived));
-                    if (read <= 0)
-                        throw new IOException($"图片 {fileName} 下载中断，已收到 {totalReceived}/{fileLength} bytes");
+                if (s) GameDataManager.AddSharedImage(fn);
+                else GameDataManager.AddUploadedImage(fn);
+            });
 
-                    fs.Write(buffer, 0, read);
-                    totalReceived += read;
-                }
-            }
-
-            // 记录到数据管理器
-            if (saveToShared)
-                GameDataManager.AddSharedImage(fileName);
-            else
-                GameDataManager.AddUploadedImage(fileName);
-
-            Debug.Log($"图片下载完成: {fileName}");
             onDownloaded?.Invoke(destPath);
+            return true;
         }
         catch (Exception e)
         {
-            Debug.LogError($"下载图片 {fileName} 失败: {e.Message}");
+            Log($"[错误] 下载异常: {e.Message}");
+            return false;
         }
     }
 
@@ -584,38 +839,35 @@ public class LANShareManager : MonoBehaviour
 
     #region 工具方法
 
-    /// <summary>
-    /// 获取本机局域网 IP（过滤回环、自动配置、虚拟网卡地址）。
-    /// </summary>
     private string GetLocalIPAddress()
     {
-        string localIP = "";
-        var host = Dns.GetHostEntry(Dns.GetHostName());
-
-        foreach (var ip in host.AddressList)
+        try
         {
-            if (ip.AddressFamily == AddressFamily.InterNetwork &&
-                !IPAddress.IsLoopback(ip) &&
-                !ip.ToString().StartsWith("169.254") &&   // 排除自动配置
-                !ip.ToString().StartsWith("192.168.56") && // 排除 VirtualBox
-                !ip.ToString().StartsWith("192.168.99"))   // 排除 Docker
+            var host = Dns.GetHostEntry(Dns.GetHostName());
+            foreach (var ip in host.AddressList)
             {
-                localIP = ip.ToString();
-                break;
+                if (ip.AddressFamily == AddressFamily.InterNetwork &&
+                    !IPAddress.IsLoopback(ip) &&
+                    !ip.ToString().StartsWith("169.254") &&
+                    !ip.ToString().StartsWith("192.168.56") &&
+                    !ip.ToString().StartsWith("192.168.99"))
+                    return ip.ToString();
             }
+            return "";
         }
-        return localIP;
+        catch (Exception e)
+        {
+            Log($"[错误] 获取本机IP失败: {e.Message}");
+            return "";
+        }
     }
 
-    /// <summary>
-    /// 根据本机 IP 计算子网广播地址（例如 192.168.1.255）。
-    /// </summary>
     private string GetBroadcastAddress()
     {
         string localIP = GetLocalIPAddress();
         if (string.IsNullOrEmpty(localIP)) return "255.255.255.255";
-
         string[] parts = localIP.Split('.');
+        if (parts.Length != 4) return "255.255.255.255";
         return parts[0] + "." + parts[1] + "." + parts[2] + ".255";
     }
 
@@ -623,14 +875,10 @@ public class LANShareManager : MonoBehaviour
 
     #region 辅助数据结构
 
-    /// <summary>
-    /// 用于 JSON 序列化/反序列化的字符串列表包装类。
-    /// </summary>
     [Serializable]
     public class StringListWrapper
     {
         public List<string> items;
-
         public StringListWrapper() { }
         public StringListWrapper(List<string> items) { this.items = items; }
     }
