@@ -17,6 +17,8 @@ using Random = UnityEngine.Random;
 /// 同时包含：
 /// - 防重入：加载期间忽略新的加载请求。
 /// - 纹理释放：切换图片时释放上一次的上传/共享纹理。
+/// - 进度保存：每次锁定碎片后保存该图的进度，下次进入自动恢复。
+/// - 重新开始：点击按钮清除进度，所有碎片（含已锁定）回到碎片列表。
 /// </summary>
 public class GameManager : MonoBehaviour
 {
@@ -39,6 +41,7 @@ public class GameManager : MonoBehaviour
     public Button backButton;
     public Button hintButton;
     public Button returnButton;
+    public Button restartButton;      // ★ 新增：重新开始按钮
     public RectTransform listContent;
     public RectTransform puzzleArea;
     public GameObject victoryPanel;
@@ -123,6 +126,10 @@ public class GameManager : MonoBehaviour
         prevImageButton.onClick.AddListener(PrevImage);
         backButton.onClick.AddListener(BackToMenu);
         returnButton.onClick.AddListener(ReturnUnlockedPieces);
+
+        // ★ 绑定重新开始按钮
+        if (restartButton != null)
+            restartButton.onClick.AddListener(OnRestartClicked);
 
         // 提示按钮：按下显示原图，抬起隐藏
         EventTrigger trigger = hintButton.gameObject.GetComponent<EventTrigger>();
@@ -356,6 +363,7 @@ public class GameManager : MonoBehaviour
 
     /// <summary>
     /// 根据已加载的 chosenSprite 构建拼图区域、碎片和网格。
+    /// 如果该图有存档进度，已锁定的碎片会直接以锁定状态摆放在正确位置。
     /// </summary>
     private void BuildPuzzle()
     {
@@ -405,14 +413,36 @@ public class GameManager : MonoBehaviour
             return;
         }
 
-        // ==================== 切割并创建碎片 ====================
+        // ==================== 切割纹理 ====================
         Sprite[] pieces = CutTexture(texture, rows, cols);
-        List<PuzzlePieceData> pieceDataList = new List<PuzzlePieceData>();
-        for (int i = 0; i < totalPieces; i++)
-            pieceDataList.Add(new PuzzlePieceData(i, pieces[i], Random.Range(0, 4) * 90));
-        Shuffle(pieceDataList);
 
-        // 设置碎片列表水平布局
+        // ==================== 读取进度 ====================
+        bool[] lockedFlags = null;
+        if (!isDailyPuzzle)
+        {
+            lockedFlags = GameDataManager.LoadPuzzleProgress(
+                selectedCategory, currentImageIndex, gridSize, totalPieces);
+
+            if (lockedFlags != null)
+            {
+                int lockedNum = 0;
+                for (int i = 0; i < lockedFlags.Length; i++) if (lockedFlags[i]) lockedNum++;
+                Debug.Log($"[进度] 读取到 {selectedCategory}_{currentImageIndex}_{gridSize} 的进度：{lockedNum}/{totalPieces} 已锁定");
+            }
+        }
+
+        // ==================== 分类：已锁定 / 未锁定 ====================
+        List<int> lockedIndices = new List<int>();
+        List<int> unlockedIndices = new List<int>();
+        for (int i = 0; i < totalPieces; i++)
+        {
+            if (lockedFlags != null && lockedFlags[i])
+                lockedIndices.Add(i);
+            else
+                unlockedIndices.Add(i);
+        }
+
+        // ==================== 设置碎片列表布局 ====================
         listContent.anchorMin = new Vector2(0, 0.5f);
         listContent.anchorMax = new Vector2(0, 0.5f);
         listContent.pivot = new Vector2(0, 0.5f);
@@ -432,6 +462,21 @@ public class GameManager : MonoBehaviour
         if (fitter == null) fitter = listContent.gameObject.AddComponent<ContentSizeFitter>();
         fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
         fitter.verticalFit = ContentSizeFitter.FitMode.Unconstrained;
+
+        // ==================== 创建已锁定碎片（直接摆在正确位置） ====================
+        foreach (int idx in lockedIndices)
+        {
+            CreateLockedPieceFromProgress(pieces[idx], idx);
+        }
+
+        // ==================== 创建未锁定碎片（放回列表，随机旋转） ====================
+        List<PuzzlePieceData> pieceDataList = new List<PuzzlePieceData>();
+        for (int i = 0; i < unlockedIndices.Count; i++)
+        {
+            int idx = unlockedIndices[i];
+            pieceDataList.Add(new PuzzlePieceData(idx, pieces[idx], Random.Range(0, 4) * 90));
+        }
+        Shuffle(pieceDataList);
 
         foreach (var data in pieceDataList)
         {
@@ -523,6 +568,45 @@ public class GameManager : MonoBehaviour
     #region 碎片创建与管理
 
     /// <summary>
+    /// 计算指定碎片编号的目标位置（拼图区本地坐标）。
+    /// </summary>
+    private Vector2 GetTargetPositionForPiece(int pieceIndex)
+    {
+        int row = pieceIndex / cols;
+        int col = pieceIndex % cols;
+        float targetX = (col - (cols - 1) / 2f) * pieceSize;
+        float targetY = ((rows - 1) / 2f - row) * pieceSize;
+        return new Vector2(targetX, targetY);
+    }
+
+    /// <summary>
+    /// 根据存档进度直接创建一个已锁定的碎片（放在正确位置、粉色、不可交互）。
+    /// </summary>
+    private void CreateLockedPieceFromProgress(Sprite sprite, int pieceIndex)
+    {
+        GameObject pieceObj = Instantiate(piecePrefab, puzzleContent);
+        PuzzlePiece piece = pieceObj.GetComponent<PuzzlePiece>();
+        piece.Initialize(sprite, pieceIndex, 0);
+        piece.isLocked = true;
+        piece.interactable = false;
+
+        RectTransform rt = pieceObj.GetComponent<RectTransform>();
+        rt.sizeDelta = new Vector2(pieceSize, pieceSize);
+        rt.anchoredPosition = GetTargetPositionForPiece(pieceIndex);
+
+        // 移除按钮组件
+        Button btn = pieceObj.GetComponent<Button>();
+        if (btn != null) Destroy(btn);
+
+        // 设置已锁定的颜色
+        Image img = pieceObj.GetComponent<Image>();
+        if (img != null) img.color = new Color(1f, 0.8f, 0.8f, 1f);
+
+        activePieces.Add(piece);
+        lockedCount++;
+    }
+
+    /// <summary>
     /// 在列表中创建一个碎片项（不可交互）。
     /// </summary>
     private void CreateListPiece(Sprite sprite, int index, int rotation)
@@ -558,11 +642,7 @@ public class GameManager : MonoBehaviour
         newPiece.interactable = true;
 
         // 计算目标位置
-        int row = listPiece.pieceIndex / cols;
-        int col = listPiece.pieceIndex % cols;
-        float targetX = (col - (cols - 1) / 2f) * pieceSize;
-        float targetY = ((rows - 1) / 2f - row) * pieceSize;
-        newPiece.targetPosition = new Vector2(targetX, targetY);
+        newPiece.targetPosition = GetTargetPositionForPiece(listPiece.pieceIndex);
 
         RectTransform rt = newPieceObj.GetComponent<RectTransform>();
         rt.sizeDelta = new Vector2(pieceSize, pieceSize);
@@ -601,6 +681,31 @@ public class GameManager : MonoBehaviour
             activePieces.Remove(piece);
             Destroy(piece.gameObject);
         }
+    }
+
+    /// <summary>
+    /// 点击"重新开始"：清除进度，所有碎片（含已锁定）回到碎片列表。
+    /// </summary>
+    private void OnRestartClicked()
+    {
+        if (isDailyPuzzle)
+        {
+            // 每日拼图不允许重新开始
+            ShowConfirm("每日拼图不支持重新开始", null);
+            return;
+        }
+
+        ShowConfirm("是否重新开始？所有已锁定的碎片将返回碎片列表。", () =>
+        {
+            Debug.Log("[重新开始] 用户确认");
+
+            // 清除进度
+            GameDataManager.ClearPuzzleProgress(selectedCategory, currentImageIndex, gridSize);
+            Debug.Log($"[重新开始] 已清除 {selectedCategory}_{currentImageIndex}_{gridSize} 的进度");
+
+            // 重建拼图
+            StartCoroutine(StartNewGameAsync());
+        });
     }
 
     #endregion
@@ -651,9 +756,23 @@ public class GameManager : MonoBehaviour
     public void CheckVictory()
     {
         lockedCount++;
+
+        // ★ 每次锁定后立即保存进度（非每日拼图）
+        if (!isDailyPuzzle)
+        {
+            SaveCurrentProgress();
+        }
+
         if (lockedCount >= totalPieces)
         {
             isVictory = true;
+
+            // ★ 全部完成，清除进度记录
+            if (!isDailyPuzzle)
+            {
+                GameDataManager.ClearPuzzleProgress(selectedCategory, currentImageIndex, gridSize);
+                Debug.Log($"[进度] 拼图完成，已清除 {selectedCategory}_{currentImageIndex}_{gridSize} 的进度");
+            }
 
             // 播放胜利音效
             if (victorySound != null && SoundManager.Instance != null)
@@ -730,6 +849,24 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 把当前所有已锁定碎片的状态写入 GameDataManager。
+    /// </summary>
+    private void SaveCurrentProgress()
+    {
+        if (totalPieces <= 0) return;
+
+        bool[] flags = new bool[totalPieces];
+        foreach (var piece in activePieces)
+        {
+            if (piece == null || !piece.isLocked) continue;
+            int idx = piece.pieceIndex;
+            if (idx >= 0 && idx < totalPieces)
+                flags[idx] = true;
+        }
+        GameDataManager.SavePuzzleProgress(selectedCategory, currentImageIndex, gridSize, flags);
+    }
+
     #endregion
 
     #region 提示功能
@@ -780,6 +917,10 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public void NextImage()
     {
+        // ★ 切换前保存当前进度
+        if (!isDailyPuzzle && !isVictory)
+            SaveCurrentProgress();
+
         if (isDailyPuzzle)
         {
             int count = GameDataManager.GetDailyPuzzleImages().Count;
@@ -886,6 +1027,10 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public void PrevImage()
     {
+        // ★ 切换前保存当前进度
+        if (!isDailyPuzzle && !isVictory)
+            SaveCurrentProgress();
+
         if (isDailyPuzzle)
         {
             int count = GameDataManager.GetDailyPuzzleImages().Count;
@@ -1140,6 +1285,10 @@ public class GameManager : MonoBehaviour
 
     private void BackToMenu()
     {
+        // ★ 返回菜单前保存进度
+        if (!isDailyPuzzle && !isVictory)
+            SaveCurrentProgress();
+
         ReleaseChosenSprite();
 
         PlayerPrefs.SetInt("IsDailyPuzzle", 0);

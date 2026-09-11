@@ -5,7 +5,7 @@ using UnityEngine;
 
 /// <summary>
 /// 游戏数据管理器：负责所有持久化数据的读写，包括金币、经验、等级、收藏、
-/// 体力、每日拼图、分类和图片解锁状态、上传图片、共享图片、头像等。
+/// 体力、每日拼图、分类和图片解锁状态、上传图片、共享图片、头像、拼图进度等。
 /// 所有数据通过 PlayerPrefs 存储，文件通过 Application.persistentDataPath 存储。
 /// 该类为静态类，无需挂载到场景中。
 /// </summary>
@@ -64,6 +64,9 @@ public static class GameDataManager
 
     // 头像
     private const string AvatarIndexKey = "AvatarIndex";
+
+    // 拼图进度
+    private const string PuzzleProgressPrefix = "PuzzleProgress_";
 
     #endregion
 
@@ -605,6 +608,89 @@ public static class GameDataManager
     {
         PlayerPrefs.SetInt(AvatarIndexKey, index);
         PlayerPrefs.Save();
+    }
+
+    #endregion
+
+    #region 拼图进度
+
+    /// <summary>
+    /// 生成某张图（含难度）的进度存储 key。
+    /// 例：PuzzleProgress_Kazimierz_3_8
+    /// </summary>
+    private static string GetProgressKey(string category, int imageIndex, int gridSize)
+    {
+        return PuzzleProgressPrefix + category + "_" + imageIndex + "_" + gridSize;
+    }
+
+    /// <summary>
+    /// 保存拼图进度。lockedFlags[i] = true 表示第 i 号碎片已锁定。
+    /// 如果 lockedFlags 全为 false（或为空），视为无进度，删除记录。
+    /// </summary>
+    public static void SavePuzzleProgress(string category, int imageIndex, int gridSize, bool[] lockedFlags)
+    {
+        if (lockedFlags == null || lockedFlags.Length == 0)
+        {
+            ClearPuzzleProgress(category, imageIndex, gridSize);
+            return;
+        }
+
+        // 检查是否至少有 1 个锁定
+        bool hasAny = false;
+        for (int i = 0; i < lockedFlags.Length; i++)
+        {
+            if (lockedFlags[i]) { hasAny = true; break; }
+        }
+
+        if (!hasAny)
+        {
+            ClearPuzzleProgress(category, imageIndex, gridSize);
+            return;
+        }
+
+        var sb = new System.Text.StringBuilder(lockedFlags.Length);
+        for (int i = 0; i < lockedFlags.Length; i++)
+            sb.Append(lockedFlags[i] ? '1' : '0');
+
+        PlayerPrefs.SetString(GetProgressKey(category, imageIndex, gridSize), sb.ToString());
+        PlayerPrefs.Save();
+    }
+
+    /// <summary>
+    /// 读取拼图进度。返回长度 = totalPieces 的 bool 数组；
+    /// 没有记录或长度不匹配（例如升级后难度变了）返回 null。
+    /// </summary>
+    public static bool[] LoadPuzzleProgress(string category, int imageIndex, int gridSize, int totalPieces)
+    {
+        string key = GetProgressKey(category, imageIndex, gridSize);
+        if (!PlayerPrefs.HasKey(key)) return null;
+
+        string s = PlayerPrefs.GetString(key, "");
+        if (string.IsNullOrEmpty(s)) return null;
+
+        if (s.Length != totalPieces) return null;
+
+        bool[] result = new bool[totalPieces];
+        for (int i = 0; i < totalPieces; i++)
+            result[i] = s[i] == '1';
+        return result;
+    }
+
+    /// <summary>
+    /// 清除某张图（含难度）的进度记录。
+    /// </summary>
+    public static void ClearPuzzleProgress(string category, int imageIndex, int gridSize)
+    {
+        PlayerPrefs.DeleteKey(GetProgressKey(category, imageIndex, gridSize));
+        PlayerPrefs.Save();
+    }
+
+    /// <summary>
+    /// 判断某张图是否有存档进度。
+    /// </summary>
+    public static bool HasPuzzleProgress(string category, int imageIndex, int gridSize)
+    {
+        return PlayerPrefs.HasKey(GetProgressKey(category, imageIndex, gridSize));
     }
 
     #endregion
