@@ -770,7 +770,32 @@ public static class GameDataManager
             PlayerPrefs.Save();
         }
     }
+    /// <summary>
+    /// 删除一个共享图片（同时删除磁盘文件）。
+    /// </summary>
+    public static void RemoveSharedImage(string fileName)
+    {
+        List<string> list = GetSharedImages();
 
+        if (list.Remove(fileName))
+        {
+            // 1. 从 PlayerPrefs 列表里移除
+            PlayerPrefs.SetString(SharedImagesKey, string.Join(",", list));
+            PlayerPrefs.Save();
+
+            // 2. 从磁盘删除文件（存在才删，避免报错）
+            try
+            {
+                string filePath = GetSharedImagePath(fileName);
+                if (File.Exists(filePath))
+                    File.Delete(filePath);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[GameDataManager] 删除共享图片文件失败: {e.Message}");
+            }
+        }
+    }
     /// <summary>
     /// 获取共享图片的完整路径。
     /// 共享图片存在 Shared 目录（区别于上传的 Uploads 目录）。

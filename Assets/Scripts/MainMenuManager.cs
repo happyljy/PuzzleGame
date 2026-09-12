@@ -1,298 +1,313 @@
-using System;                              // Action Î¯ÍĞ¡¢DateTime¡¢Exception
-using System.Collections;                  // IEnumerator£¨Ğ­³Ì£©
-using System.Collections.Generic;          // List¡¢Dictionary¡¢HashSet
-using System.IO;                           // File¡¢Directory¡¢Path
-using System.Text.RegularExpressions;      // Regex£¨ÕıÔò±í´ïÊ½£¬ÓÃÓÚÑéÖ¤Ãû×Ö¸ñÊ½£©
-using UnityEngine;                         // Unity »ù´¡ API
-using UnityEngine.SceneManagement;         // SceneManager£¨³¡¾°ÇĞ»»£©
-using UnityEngine.UI;                      // UI ×é¼ş£¨Button¡¢Text¡¢Image¡¢Slider¡¢InputField¡¢GridLayoutGroup µÈ£©
-using Random = UnityEngine.Random;         // ¸ø Random Æğ±ğÃû£¬±ÜÃâºÍ System.Random ³åÍ»
+ï»¿using System;                              // Action å§”æ‰˜ã€DateTimeã€Exception ç­‰åŸºç¡€ç±»å‹
+using System.Collections;                  // IEnumeratorï¼ˆåç¨‹è¿”å›ç±»å‹ï¼‰
+using System.Collections.Generic;          // Listã€Dictionaryã€HashSet ç­‰æ³›å‹é›†åˆ
+using System.IO;                           // Fileã€Directoryã€Pathï¼ˆæ–‡ä»¶æ“ä½œï¼‰
+using System.Text.RegularExpressions;      // Regexï¼ˆæ­£åˆ™è¡¨è¾¾å¼ï¼Œç”¨äºéªŒè¯ç©å®¶åå­—æ ¼å¼ï¼‰
+using UnityEngine;                         // Unity åŸºç¡€ API
+using UnityEngine.SceneManagement;         // SceneManagerï¼ˆåœºæ™¯åˆ‡æ¢ï¼‰
+using UnityEngine.UI;                      // UI ç»„ä»¶ï¼ˆButtonã€Textã€Imageã€Sliderã€InputFieldã€GridLayoutGroup ç­‰ï¼‰
+using Random = UnityEngine.Random;         // ç»™ Random èµ·åˆ«åï¼Œé¿å…å’Œ System.Random å†²çª
 
 /// <summary>
-/// Ö÷²Ëµ¥¹ÜÀíÆ÷¡£
+/// ä¸»èœå•ç®¡ç†å™¨ï¼ˆLevelScene åœºæ™¯çš„æ€»æŒ‡æŒ¥ï¼‰ã€‚
 ///
-/// ¡¾Õâ¸ö½Å±¾ÊÇ¸ÉÊ²Ã´µÄ£¿¡¿
-/// ÕâÊÇÕû¸öÖ÷²Ëµ¥³¡¾°µÄ"×ÜÖ¸»Ó"£¬¸ºÔğ£º
-///   1. UI Ãæ°åÇĞ»»£¨·ÖÀà¡¢¸öÈËĞÅÏ¢¡¢ÉèÖÃ¡¢ÊÕ²ØµÈ£©
-///   2. ·ÖÀà°´Å¥Éú³É£¨´Ó AssetBundle ¶ÁÈ¡Í¼Æ¬·ÖÀà£©
-///   3. Í¼Æ¬Ñ¡Ôñ¡¢ÄÑ¶ÈÑ¡Ôñ¡¢¹ºÂò½âËø
-///   4. ÉÏ´«Í¼Æ¬¹ÜÀí£¨´ÓÏà²áÑ¡Í¼ ¡ú ±£´æµ½±¾µØ ¡ú ÏÔÊ¾ÁĞ±í£©
-///   5. ¾ÖÓòÍø·ÖÏí£¨·ÖÏí·½/½ÓÊÕ·½ UI ½»»¥£©
-///   6. Ã¿ÈÕÆ´Í¼¡¢¿´¹ã¸æ»ØÌåÁ¦¡¢ÌåÁ¦/½ğ±ÒÏÔÊ¾
+/// ã€è¿™ä¸ªè„šæœ¬è´Ÿè´£ä»€ä¹ˆï¼Ÿã€‘
+/// ä¸»èœå•ï¼ˆLevelSceneï¼‰é‡Œå‡ ä¹æ‰€æœ‰äº¤äº’éƒ½ç”±å®ƒç»Ÿä¸€ç®¡ç†ï¼š
+///   1. åˆ†ç±»æŒ‰é’®ç”Ÿæˆä¸é¢„è§ˆï¼ˆä» AssetBundle è¯»å–å›¾ç‰‡åˆ†ç±»ï¼‰
+///   2. å›¾ç‰‡é€‰æ‹©ã€éš¾åº¦é€‰æ‹©ã€é‡‘å¸è´­ä¹°è§£é”
+///   3. ä¸Šä¼ å›¾ç‰‡ï¼ˆä»ç›¸å†Œé€‰å›¾ â†’ ä¿å­˜åˆ°æœ¬åœ° â†’ æ˜¾ç¤ºåˆ—è¡¨ï¼‰
+///   4. å±€åŸŸç½‘åˆ†äº«ï¼ˆåˆ†äº«æ–¹/æ¥æ”¶æ–¹çš„ UI äº¤äº’ï¼‰
+///   5. æ¯æ—¥æ‹¼å›¾ã€çœ‹å¹¿å‘Šå›ä½“åŠ›ã€ä½“åŠ›/é‡‘å¸æ˜¾ç¤º
+///   6. ä¸ªäººä¿¡æ¯ï¼ˆæ”¹åå­—ã€æ¢å¤´åƒã€ç­‰çº§ç»éªŒï¼‰
+///   7. æˆ‘çš„æ”¶è—
+///   8. ä¸Šä¼ /åˆ†äº«çš„å…¨è¿‡ç¨‹ Debug æ—¥å¿—ï¼ˆæ˜¾ç¤ºåˆ° uploadDebugTextï¼‰
 ///
-/// ¡¾¹Ø¼üÉè¼Æµã¡¿
-/// - Ãæ°å·Ö²ã£ºBase£¨»ù´¡²ã£©/ Layer2 / Layer3 / Layer4£¬ÓÃ ShowPanel Í³Ò»¹ÜÀí
-/// - ·ÀÖØÈë£ºisImagePanelLoading µÈ±ê¼Ç£¬·ÀÖ¹ÖØ¸´¼ÓÔØ
-/// - ¶¯Ì¬ÎÆÀíÊÍ·Å£ºÉÏ´«/¹²ÏíÍ¼Æ¬´´½¨µÄ Sprite ÓÃÍêÒª Destroy
-/// - µ÷ÊÔÈÕÖ¾£ºÉÏ´«/·ÖÏíÈ«¹ı³ÌÊµÊ±ÏÔÊ¾µ½ uploadDebugText
+/// ã€å…³é”®è®¾è®¡ã€‘
+///   - é¢æ¿åˆ†å±‚ï¼šBase / Layer2 / Layer3 / Layer4ï¼Œç”± ShowPanel ç»Ÿä¸€è°ƒåº¦
+///   - é˜²é‡å…¥ï¼šisImagePanelLoading ç­‰æ ‡è®°ï¼Œé˜²æ­¢ç”¨æˆ·è¿ç‚¹å¯¼è‡´ UI é‡å¤åˆ›å»º
+///   - åŠ¨æ€çº¹ç†é‡Šæ”¾ï¼šä¸Šä¼ /å…±äº«å›¾ç‰‡è¿è¡Œæ—¶åˆ›å»ºçš„ Sprite ç”¨å®Œè¦ Destroy
+///   - å•ä¾‹æ¨¡å¼ï¼šè®© LANShareManager ç­‰å¤–éƒ¨æ¨¡å—èƒ½è®¿é—® Instance å†™æ—¥å¿—
 /// </summary>
 public class MainMenuManager : MonoBehaviour
 {
-    #region µ¥Àı£¨¹© LANShareManager Êä³öÈÕÖ¾£©
+    #region å•ä¾‹ï¼ˆä¾› LANShareManager è¾“å‡ºæ—¥å¿—ï¼‰
 
     /// <summary>
-    /// µ±Ç°Ö÷²Ëµ¥ÊµÀı¡£
-    /// ÒòÎª LANShareManager ĞèÒªÏòÖ÷²Ëµ¥µÄ uploadDebugText Ğ´ÈÕÖ¾£¬
-    /// ËùÒÔ±©Â¶Ò»¸ö¾²Ì¬ÒıÓÃ¡£
-    /// ×¢Òâ£ºÖ»ÓĞÖ÷²Ëµ¥³¡¾°£¨LevelScene£©Àï²ÅÓĞÕâ¸öÊµÀı£¬
-    ///       ÇĞµ½ÓÎÏ·³¡¾°ºó Instance »áÊÇ null¡£
+    /// å½“å‰ä¸»èœå•å®ä¾‹ï¼ˆå…¨å±€å”¯ä¸€ï¼‰ã€‚
+    /// 
+    /// ã€ä¸ºä»€ä¹ˆè¦æš´éœ²é™æ€å¼•ç”¨ï¼Ÿã€‘
+    /// LANShareManager åœ¨åå°çº¿ç¨‹æ”¶åˆ°ç½‘ç»œæ•°æ®åï¼Œ
+    /// éœ€è¦å¾€ä¸»èœå•çš„ uploadDebugText å†™æ—¥å¿—ã€‚
+    /// é€šè¿‡ MainMenuManager.Instance å°±èƒ½è·¨è„šæœ¬è®¿é—®åˆ°å®ƒã€‚
+    /// 
+    /// ã€æ³¨æ„ã€‘
+    /// åªæœ‰ä¸»èœå•åœºæ™¯ï¼ˆLevelSceneï¼‰é‡Œæ‰æœ‰è¿™ä¸ªå®ä¾‹ã€‚
+    /// åˆ‡åˆ°æ¸¸æˆåœºæ™¯ï¼ˆGameSceneï¼‰å Instance ä¼šè¢«æ¸…ç©ºï¼ˆnullï¼‰ã€‚
     /// </summary>
     public static MainMenuManager Instance { get; private set; }
 
     #endregion
 
-    #region UI ÒıÓÃ - ÉèÖÃÃæ°å
+    #region UI å¼•ç”¨ - è®¾ç½®é¢æ¿
 
-    // [Header] Ö»ÊÇÈÃ Inspector Ãæ°åÀïÏÔÊ¾Ò»¸ö·Ö×é±êÌâ£¬²»Ó°ÏìÂß¼­¡£
-    // ÏÂÃæÕâĞ© public ×Ö¶Î¶¼ĞèÒªÔÚ Unity ÀïÊÖ¶¯ÍÏÒıÓÃ¡£
+    // [Header] åªæ˜¯è®© Inspector é¢æ¿é‡Œæ˜¾ç¤ºåˆ†ç»„æ ‡é¢˜ï¼Œä¸å½±å“é€»è¾‘ã€‚
+    // ä¸‹é¢è¿™äº› public å­—æ®µéƒ½éœ€è¦åœ¨ Unity ç¼–è¾‘å™¨é‡Œæ‰‹åŠ¨æ‹–å¼•ç”¨ã€‚
 
-    [Header("ÉèÖÃÃæ°å")]
-    public GameObject settingsPanel;       // ÉèÖÃÃæ°å¸ùÎïÌå
-    public Button settingsButton;          // ´ò¿ªÉèÖÃ°´Å¥
-    public Button settingsCloseButton;     // ¹Ø±ÕÉèÖÃ°´Å¥
-    public Button stopBGMButton;           // Í£Ö¹/²¥·Å BGM °´Å¥
-    public Slider bgmSlider;               // BGM ÒôÁ¿»¬Ìõ
-    public Slider sfxSlider;               // ÒôĞ§ÒôÁ¿»¬Ìõ
+    [Header("è®¾ç½®é¢æ¿")]
+    public GameObject settingsPanel;       // è®¾ç½®é¢æ¿çš„æ ¹ç‰©ä½“ï¼ˆæ§åˆ¶æ˜¾éšï¼‰
+    public Button settingsButton;          // æ‰“å¼€è®¾ç½®é¢æ¿çš„æŒ‰é’®
+    public Button settingsCloseButton;     // å…³é—­è®¾ç½®é¢æ¿çš„æŒ‰é’®
+    public Button stopBGMButton;           // åœæ­¢/æ’­æ”¾èƒŒæ™¯éŸ³ä¹çš„æŒ‰é’®
+    public Slider bgmSlider;               // èƒŒæ™¯éŸ³ä¹éŸ³é‡æ»‘æ¡ï¼ˆ0~1ï¼‰
+    public Slider sfxSlider;               // éŸ³æ•ˆéŸ³é‡æ»‘æ¡ï¼ˆ0~1ï¼‰
 
-    [Header("ÍË³öÓÎÏ·")]
-    public Button quitGameButton;          // ÍË³öÓÎÏ·°´Å¥
+    [Header("é€€å‡ºæ¸¸æˆ")]
+    public Button quitGameButton;          // é€€å‡ºæ¸¸æˆæŒ‰é’®
 
-    [Header("¼ÓÔØÒôĞ§")]
-    public AudioClip loadingSound;         // ÇĞ³¡¾°Ê±µÄ¼ÓÔØÒôĞ§
+    [Header("åŠ è½½éŸ³æ•ˆ")]
+    public AudioClip loadingSound;         // åˆ‡æ¢åœºæ™¯æ—¶æ’­æ”¾çš„åŠ è½½éŸ³æ•ˆ
 
     #endregion
 
-    #region UI ÒıÓÃ - ¾ÖÓòÍø·ÖÏí
+    #region UI å¼•ç”¨ - å±€åŸŸç½‘åˆ†äº«
 
-    [Header("Í£Ö¹¹ã²¥")]
-    public Button stopBroadcastButton;     // ¶Ï¿ªÁ¬½Ó/Í£Ö¹·ÖÏí°´Å¥
+    [Header("åœæ­¢å¹¿æ’­")]
+    public Button stopBroadcastButton;     // æ–­å¼€è¿æ¥ / åœæ­¢åˆ†äº«æŒ‰é’®
 
-    [Header("¾ÖÓòÍø·ÖÏí UI")]
-    public GameObject deviceListPanel;     // Éè±¸ÁĞ±íÃæ°å
-    public RectTransform deviceListContent;// Éè±¸ÁĞ±íÈİÆ÷
-    public GameObject deviceButtonPrefab;  // Éè±¸°´Å¥Ô¤ÖÆÌå
-    public float deviceButtonWidth = 620f; // Éè±¸°´Å¥¿í¶È
-    public float deviceButtonHeight = 100f;// Éè±¸°´Å¥¸ß¶È
-    public Button cancelDiscoverButton;    // È¡ÏûËÑË÷°´Å¥
+    [Header("å±€åŸŸç½‘åˆ†äº« UI")]
+    public GameObject deviceListPanel;     // è®¾å¤‡åˆ—è¡¨é¢æ¿ï¼ˆæ¥æ”¶æ–¹æœç´¢åˆ°çš„è®¾å¤‡æ˜¾ç¤ºåœ¨è¿™é‡Œï¼‰
+    public RectTransform deviceListContent;// è®¾å¤‡åˆ—è¡¨çš„å®¹å™¨ï¼ˆVerticalLayoutGroupï¼‰
+    public GameObject deviceButtonPrefab;  // è®¾å¤‡æŒ‰é’®é¢„åˆ¶ä½“ï¼ˆæ¯ä¸ªè®¾å¤‡ä¸€ä¸ªæŒ‰é’®ï¼‰
+    public float deviceButtonWidth = 620f; // è®¾å¤‡æŒ‰é’®çš„å®½åº¦
+    public float deviceButtonHeight = 100f;// è®¾å¤‡æŒ‰é’®çš„é«˜åº¦
+    public Button cancelDiscoverButton;    // å–æ¶ˆæœç´¢è®¾å¤‡æŒ‰é’®
 
-    public GameObject remoteImagePanel;    // Ô¶³ÌÍ¼Æ¬Ãæ°å£¨½ÓÊÕ·½µÈ´ı½çÃæ£©
+    public GameObject remoteImagePanel;    // è¿œç¨‹å›¾ç‰‡é¢æ¿ï¼ˆæ¥æ”¶æ–¹ç­‰å¾…ä¸‹è½½çš„ç•Œé¢ï¼‰
     public RectTransform remoteImageContent;
     public GameObject remoteImageButtonPrefab;
-    public Button cancelConnectButton;     // È¡ÏûÁ¬½Ó°´Å¥
-    public Button downloadSelectedButton;  // ¡¾È·ÈÏÏÂÔØ¡¿°´Å¥
-    public Text remoteStatusText;          // ½ÓÊÕ·½×´Ì¬ÎÄ×Ö
+    public Button cancelConnectButton;     // å–æ¶ˆè¿æ¥æŒ‰é’®
+    public Button downloadSelectedButton;  // ã€ç¡®è®¤ä¸‹è½½ã€‘æŒ‰é’®
+    public Text remoteStatusText;          // æ¥æ”¶æ–¹çŠ¶æ€æ–‡å­—ï¼ˆæ˜¾ç¤º"ç­‰å¾…å¯¹æ–¹åˆ†äº«"ç­‰ï¼‰
 
-    public GameObject shareSelectPanel;    // ·ÖÏíÑ¡ÔñÃæ°å£¨·ÖÏí·½Ñ¡ÔñÒª´«ÄÄĞ©Í¼£©
+    public GameObject shareSelectPanel;    // åˆ†äº«é€‰æ‹©é¢æ¿ï¼ˆåˆ†äº«æ–¹å‹¾é€‰è¦ä¼ å“ªäº›å›¾ç‰‡ï¼‰
     public RectTransform shareSelectContent;
-    public Button startSharingButton;      // ¡¾·ÖÏí¡¿°´Å¥
-    public Button cancelShareSelectButton; // È¡Ïû·ÖÏíÑ¡Ôñ°´Å¥
+    public Button startSharingButton;      // ã€åˆ†äº«ã€‘æŒ‰é’®ï¼ˆç¡®è®¤è¦åˆ†äº«é€‰ä¸­çš„å›¾ç‰‡ï¼‰
+    public Button cancelShareSelectButton; // å–æ¶ˆåˆ†äº«é€‰æ‹©æŒ‰é’®
 
-    [Header("¾ÖÓòÍø·ÖÏí")]
-    public Button shareButton;             // Ö÷½çÃæ¡¾·ÖÏí¡¿°´Å¥
-    public Button receiveButton;           // Ö÷½çÃæ¡¾½ÓÊÕ¡¿°´Å¥
-    public Text shareStatusText;           // ·ÖÏí·½×´Ì¬ÎÄ×Ö
+    [Header("å±€åŸŸç½‘åˆ†äº«")]
+    public Button shareButton;             // ä¸»ç•Œé¢ã€åˆ†äº«ã€‘æŒ‰é’®
+    public Button receiveButton;           // ä¸»ç•Œé¢ã€æ¥æ”¶ã€‘æŒ‰é’®
+    public Text shareStatusText;           // åˆ†äº«æ–¹çŠ¶æ€æ–‡å­—ï¼ˆæ˜¾ç¤º"ç­‰å¾…å®¢æˆ·ç«¯è¿æ¥"ç­‰ï¼‰
 
-    [Header("¹²Ïí·ÖÀà")]
-    public GameObject sharedImagePanel;    // ¹²ÏíÍ¼Æ¬Õ¹Ê¾Ãæ°å
+    [Header("å…±äº«åˆ†ç±»")]
+    public GameObject sharedImagePanel;    // å…±äº«å›¾ç‰‡å±•ç¤ºé¢æ¿ï¼ˆæ˜¾ç¤ºä¸‹è½½æ¥çš„å›¾ç‰‡ï¼‰
     public RectTransform sharedImageContent;
-    public Button sharedCloseButton;       // ¹Ø±Õ¹²ÏíÃæ°å°´Å¥
+    public Button sharedCloseButton;       // å…³é—­å…±äº«é¢æ¿æŒ‰é’®
 
     #endregion
 
-    #region UI ÒıÓÃ - ¸öÈËĞÅÏ¢
+    #region UI å¼•ç”¨ - ä¸ªäººä¿¡æ¯
 
-    [Header("ĞŞ¸ÄÃû×Ö")]
-    public Button changeNameButton;        // ¸ÄÃû×Ö°´Å¥
+    [Header("ä¿®æ”¹åå­—")]
+    public Button changeNameButton;        // æ‰“å¼€æ”¹åå­—é¢æ¿çš„æŒ‰é’®
 
-    [Header("»»Í·Ïñ")]
-    public Button changeAvatarButton;      // »»Í·Ïñ°´Å¥
-    public GameObject avatarSelectPanel;   // Í·ÏñÑ¡ÔñÃæ°å
-    public RectTransform avatarScrollContent;
-    public GameObject avatarButtonPrefab;  // Í·Ïñ°´Å¥Ô¤ÖÆÌå
-    public Button avatarCloseButton;       // ¹Ø±ÕÍ·ÏñÑ¡Ôñ°´Å¥
-    public Image profileAvatarImage;       // ¸öÈËĞÅÏ¢Ò³ÏÔÊ¾µÄÍ·Ïñ
+    [Header("æ¢å¤´åƒ")]
+    public Button changeAvatarButton;      // æ‰“å¼€æ¢å¤´åƒé¢æ¿çš„æŒ‰é’®
+    public GameObject avatarSelectPanel;   // å¤´åƒé€‰æ‹©é¢æ¿
+    public RectTransform avatarScrollContent; // å¤´åƒåˆ—è¡¨å®¹å™¨
+    public GameObject avatarButtonPrefab;  // å•ä¸ªå¤´åƒæŒ‰é’®é¢„åˆ¶ä½“
+    public Button avatarCloseButton;       // å…³é—­å¤´åƒé€‰æ‹©é¢æ¿
+    public Image profileAvatarImage;       // ä¸ªäººä¿¡æ¯é¡µæ˜¾ç¤ºçš„å¤´åƒ
 
-    [Header("ÉÏ´«Í¼Æ¬")]
-    public Button uploadButtonInProfile;   // ¸öÈËĞÅÏ¢Ò³µÄ"ÉÏ´«Í¼Æ¬"°´Å¥
-    public GameObject uploadManagePanel;   // ÉÏ´«¹ÜÀíÃæ°å
-    public RectTransform uploadScrollContent;
-    public Button uploadCloseButton;       // ¹Ø±ÕÉÏ´«¹ÜÀíÃæ°å°´Å¥
-    public Button addImageButton;          // ¡¾Ìí¼ÓÍ¼Æ¬¡¿°´Å¥
+    [Header("ä¸Šä¼ å›¾ç‰‡")]
+    public Button uploadButtonInProfile;   // ä¸ªäººä¿¡æ¯é¡µçš„"ä¸Šä¼ å›¾ç‰‡"æŒ‰é’®
+    public GameObject uploadManagePanel;   // ä¸Šä¼ ç®¡ç†é¢æ¿ï¼ˆç®¡ç†å·²ä¸Šä¼ çš„å›¾ç‰‡ï¼‰
+    public RectTransform uploadScrollContent; // ä¸Šä¼ å›¾ç‰‡åˆ—è¡¨å®¹å™¨
+    public Button uploadCloseButton;       // å…³é—­ä¸Šä¼ ç®¡ç†é¢æ¿
+    public Button addImageButton;          // ã€æ·»åŠ å›¾ç‰‡ã€‘æŒ‰é’®ï¼ˆä»ç›¸å†Œé€‰å›¾ï¼‰
 
-    [Header("¸öÈËĞÅÏ¢")]
-    public GameObject profilePanel;        // ¸öÈËĞÅÏ¢Ãæ°å
-    public Text profileNameText;           // ÏÔÊ¾Íæ¼ÒÃû×Ö
-    public Text profileLevelText;          // ÏÔÊ¾Íæ¼ÒµÈ¼¶¾­Ñé
-    public Slider experienceSlider;        // ¾­ÑéÌõ
-    public Button favoritesButton;         // ´ò¿ªÊÕ²Ø°´Å¥
+    [Header("ä¸ªäººä¿¡æ¯")]
+    public GameObject profilePanel;        // ä¸ªäººä¿¡æ¯é¢æ¿æ ¹ç‰©ä½“
+    public Text profileNameText;           // æ˜¾ç¤ºç©å®¶åå­—
+    public Text profileLevelText;          // æ˜¾ç¤ºç©å®¶ç­‰çº§å’Œç»éªŒ
+    public Slider experienceSlider;        // ç»éªŒè¿›åº¦æ¡
+    public Button favoritesButton;         // æ‰“å¼€æˆ‘çš„æ”¶è—æŒ‰é’®
 
-    [Header("ĞÕÃûÊäÈëÃæ°å")]
-    public GameObject nameInputPanel;      // ÊäÈëÃû×ÖµÄÃæ°å
-    public InputField nameInputField;      // ÊäÈë¿ò
-    public Button nameConfirmButton;       // È·ÈÏ°´Å¥
+    [Header("å§“åè¾“å…¥é¢æ¿")]
+    public GameObject nameInputPanel;      // è¾“å…¥åå­—çš„é¢æ¿ï¼ˆé¦–æ¬¡æ¸¸æˆå¼¹å‡ºï¼‰
+    public InputField nameInputField;      // åå­—è¾“å…¥æ¡†
+    public Button nameConfirmButton;       // ç¡®è®¤åå­—æŒ‰é’®
 
-    [Header("ÎÒµÄÊÕ²ØÃæ°å")]
-    public GameObject favoritesPanel;      // ÊÕ²ØÃæ°å
+    [Header("æˆ‘çš„æ”¶è—é¢æ¿")]
+    public GameObject favoritesPanel;      // æ”¶è—é¢æ¿æ ¹ç‰©ä½“
     public RectTransform favoritesScrollContent;
-    public Button favoritesCloseButton;    // ¹Ø±ÕÊÕ²ØÃæ°å°´Å¥
+    public Button favoritesCloseButton;    // å…³é—­æ”¶è—é¢æ¿
 
     #endregion
 
-    #region UI ÒıÓÃ - ·ÖÀàÓëÍ¼Æ¬
+    #region UI å¼•ç”¨ - åˆ†ç±»ä¸å›¾ç‰‡
 
-    [Header("·ÖÀà ScrollView")]
-    public GameObject categoryScrollView;  // ·ÖÀàÁĞ±í£¨Ö÷½çÃæÖ÷Ìå£©
-    public RectTransform categoryScrollContent;
-    public GameObject categoryButtonPrefab;// ·ÖÀà°´Å¥Ô¤ÖÆÌå
+    [Header("åˆ†ç±» ScrollView")]
+    public GameObject categoryScrollView;  // åˆ†ç±»åˆ—è¡¨ï¼ˆä¸»ç•Œé¢ä¸»ä½“ï¼‰
+    public RectTransform categoryScrollContent; // åˆ†ç±»æŒ‰é’®çš„å®¹å™¨
+    public GameObject categoryButtonPrefab;// åˆ†ç±»æŒ‰é’®é¢„åˆ¶ä½“
 
-    [Header("·ÖÀàÔ¤ÀÀÉèÖÃ")]
-    public float previewChangeInterval = 3f; // Ô¤ÀÀÍ¼ÇĞ»»¼ä¸ô£¨Ãë£©
-    public float fadeDuration = 0.5f;        // Ô¤ÀÀÍ¼µ­Èëµ­³öÊ±³¤
+    [Header("åˆ†ç±»é¢„è§ˆè®¾ç½®")]
+    public float previewChangeInterval = 3f; // é¢„è§ˆå›¾åˆ‡æ¢é—´éš”ï¼ˆç§’ï¼‰
+    public float fadeDuration = 0.5f;        // é¢„è§ˆå›¾æ·¡å…¥æ·¡å‡ºæ—¶é•¿ï¼ˆç§’ï¼‰
 
-    [Header("Í¼Æ¬Ñ¡ÔñÃæ°å")]
-    public GameObject imageSelectPanel;    // Ä³·ÖÀàµÄÍ¼Æ¬ÁĞ±íÃæ°å
-    public Button closeImagePanelButton;   // ¹Ø±Õ°´Å¥
+    [Header("å›¾ç‰‡é€‰æ‹©é¢æ¿")]
+    public GameObject imageSelectPanel;    // æŸä¸ªåˆ†ç±»çš„å›¾ç‰‡åˆ—è¡¨é¢æ¿
+    public Button closeImagePanelButton;   // å…³é—­å›¾ç‰‡é¢æ¿
     public RectTransform imageScrollContent;
-    public GameObject imageButtonPrefab;   // Í¼Æ¬°´Å¥Ô¤ÖÆÌå
+    public GameObject imageButtonPrefab;   // å•ä¸ªå›¾ç‰‡æŒ‰é’®é¢„åˆ¶ä½“
 
-    [Header("ÄÑ¶ÈÃæ°å")]
-    public GameObject difficultyPanel;     // ÄÑ¶ÈÑ¡ÔñÃæ°å
-    public Button easyButton;              // ¼òµ¥
-    public Button normalButton;            // ÆÕÍ¨
-    public Button hardButton;              // À§ÄÑ
-    public Button difficultyCancelButton;  // È¡Ïû°´Å¥
+    [Header("éš¾åº¦é¢æ¿")]
+    public GameObject difficultyPanel;     // éš¾åº¦é€‰æ‹©é¢æ¿
+    public Button easyButton;              // ç®€å•éš¾åº¦
+    public Button normalButton;            // æ™®é€šéš¾åº¦
+    public Button hardButton;              // å›°éš¾éš¾åº¦
+    public Button difficultyCancelButton;  // å–æ¶ˆé€‰æ‹©
 
-    [Header("¹ºÂòÃæ°å")]
-    public GameObject purchasePanel;       // ¹ºÂòÈ·ÈÏÃæ°å
-    public Text purchaseText;              // "ÊÇ·ñ»¨·Ñ X ½ğ±Ò½âËø"
-    public Button confirmPurchaseButton;   // È·ÈÏ¹ºÂò
-    public Button cancelPurchaseButton;    // È¡Ïû¹ºÂò
-
-    #endregion
-
-    #region UI ÒıÓÃ - Í¨ÓÃ
-
-    [Header("Ã¿ÈÕÆ´Í¼")]
-    public Button dailyPuzzleButton;       // Ã¿ÈÕÆ´Í¼Èë¿Ú°´Å¥
-
-    [Header("¼ÓÔØÃæ°å")]
-    public GameObject loadingPanel;        // ÇĞ³¡¾°Ê±µÄ¼ÓÔØÃæ°å
-    public Text loadingText;               // ¼ÓÔØ½ø¶ÈÎÄ×Ö
-    public Slider loadingSlider;           // ¼ÓÔØ½ø¶ÈÌõ
-
-    [Header("ÉÏ´«ÊµÊ± Debug")]
-    [Tooltip("°ÑÉÏ´«È«¹ı³ÌÈÕÖ¾ÏÔÊ¾µ½Ö÷²Ëµ¥µÄ Text ÉÏ£¬·½±ãÕæ»úÅÅ²é¡£")]
-    public Text uploadDebugText;           // ÏÔÊ¾µ÷ÊÔÈÕÖ¾µÄ Text
-    [Tooltip("Debug Text ×î¶à±£Áô¶àÉÙĞĞ¡£")]
-    public int uploadDebugMaxLines = 80;   // ÈÕÖ¾×î´óĞĞÊı
-
-    [Header("Í¨ÓÃÈ·ÈÏµ¯´°")]
-    public GameObject confirmPanel;        // Í¨ÓÃÈ·ÈÏµ¯´°
-    public Text confirmText;               // µ¯´°ÄÚÈİ
-    public Button confirmYesButton;        // ÊÇ
-    public Button confirmNoButton;         // ·ñ
-
-    [Header("¹ã¸æ»Ö¸´")]
-    public Button adStaminaButton;         // ¿´¹ã¸æ»ØÌåÁ¦°´Å¥
-
-    [Header("ÌåÁ¦ÏÔÊ¾")]
-    public Text staminaText;               // ÌåÁ¦ÎÄ×Ö
-    public Slider staminaSlider;           // ÌåÁ¦½ø¶ÈÌõ
-
-    [Header("½ğ±ÒÏÔÊ¾")]
-    public Text coinText;                  // ½ğ±ÒÎÄ×Ö
-
-    [Header("µ×²¿°´Å¥")]
-    public Button profileButton;           // µ×²¿£º¸öÈËĞÅÏ¢
-    public Button categoryButton;          // µ×²¿£º·ÖÀà
+    [Header("è´­ä¹°é¢æ¿")]
+    public GameObject purchasePanel;       // è´­ä¹°ç¡®è®¤é¢æ¿
+    public Text purchaseText;              // æ˜¾ç¤º"æ˜¯å¦èŠ±è´¹ X é‡‘å¸è§£é”"
+    public Button confirmPurchaseButton;   // ç¡®è®¤è´­ä¹°
+    public Button cancelPurchaseButton;    // å–æ¶ˆè´­ä¹°
 
     #endregion
 
-    #region Ë½ÓĞ×´Ì¬
+    #region UI å¼•ç”¨ - é€šç”¨
 
-    private bool isFlashing = false;              // ½ğ±Ò²»×ãÉÁË¸ÖĞ±ê¼Ç£¨·ÀÖ¹ÖØ¸´´¥·¢£©
-    private string selectedCategory;              // µ±Ç°Ñ¡ÖĞµÄ·ÖÀàÃû
-    private int selectedImageIndex = -1;          // µ±Ç°Ñ¡ÖĞµÄÍ¼Æ¬Ë÷Òı
-    private string pendingPurchaseCategory;       // ´ı¹ºÂòµÄ·ÖÀà
-    private int pendingPurchaseImageIndex;        // ´ı¹ºÂòµÄÍ¼Æ¬Ë÷Òı
+    [Header("æ¯æ—¥æ‹¼å›¾")]
+    public Button dailyPuzzleButton;       // æ¯æ—¥æ‹¼å›¾å…¥å£æŒ‰é’®
 
-    // ---------- Ãæ°å²ã¼¶¹ÜÀí ----------
-    // Ãæ°å·ÖËÄ²ã£¬Ô½¿¿ÉÏ²ãÔ½"¸¡"ÔÚÆÁÄ»ÉÏ·½¡£
-    // ShowPanel »á¸ù¾İÒªÏÔÊ¾µÄÃæ°å×Ô¶¯Òş²ØËüÏÂÃæµÄ²ã¡£
-    // Àı£ºÏÔÊ¾ Layer2 Ãæ°åÊ±£¬Layer3/Layer4 »á±»Òş²Ø¡£
-    private GameObject currentBasePanel;          // µ±Ç°»ù´¡Ãæ°å£¨·ÖÀà or ¸öÈËĞÅÏ¢£©
-    private GameObject currentLayer2Panel;        // µÚ¶ş²ã
-    private GameObject currentLayer3Panel;        // µÚÈı²ã£¨ÄÑ¶ÈÑ¡Ôñ£©
-    private GameObject currentLayer4Panel;        // µÚËÄ²ã£¨¹ºÂò£©
+    [Header("åŠ è½½é¢æ¿")]
+    public GameObject loadingPanel;        // åˆ‡åœºæ™¯æ—¶çš„åŠ è½½é¢æ¿
+    public Text loadingText;               // åŠ è½½è¿›åº¦æ–‡å­—
+    public Slider loadingSlider;           // åŠ è½½è¿›åº¦æ¡
 
-    // ---------- Ô¤ÀÀÍ¼Ğ­³Ì»º´æ ----------
-    // Ã¿¸ö·ÖÀà°´Å¥¶¼ÓĞÒ»¸ö"²»¶ÏÇĞ»»Ô¤ÀÀÍ¼"µÄĞ­³Ì¡£
-    // ÓÃ×Öµä´æÆğÀ´£¬·½±ãË¢ĞÂ·ÖÀà°´Å¥Ê±Í³Ò»Í£Ö¹¡£
+    [Header("ä¸Šä¼ å®æ—¶ Debug")]
+    [Tooltip("æŠŠä¸Šä¼ å…¨è¿‡ç¨‹æ—¥å¿—æ˜¾ç¤ºåˆ°ä¸»èœå•çš„ Text ä¸Šï¼Œæ–¹ä¾¿çœŸæœºæ’æŸ¥ã€‚")]
+    public Text uploadDebugText;           // æ˜¾ç¤ºè°ƒè¯•æ—¥å¿—çš„ Textï¼ˆUnity é‡ŒæŒ‚åœ¨ UI ä¸Šï¼‰
+    [Tooltip("Debug Text æœ€å¤šä¿ç•™å¤šå°‘è¡Œã€‚")]
+    public int uploadDebugMaxLines = 80;   // æ—¥å¿—æœ€å¤§è¡Œæ•°ï¼ˆè¶…è¿‡å°±ä¸¢å¼ƒæœ€è€çš„ï¼‰
+
+    [Header("é€šç”¨ç¡®è®¤å¼¹çª—")]
+    public GameObject confirmPanel;        // é€šç”¨ç¡®è®¤å¼¹çª—æ ¹ç‰©ä½“
+    public Text confirmText;               // å¼¹çª—æ˜¾ç¤ºçš„å†…å®¹
+    public Button confirmYesButton;        // å¼¹çª—çš„"æ˜¯"æŒ‰é’®
+    public Button confirmNoButton;         // å¼¹çª—çš„"å¦"æŒ‰é’®
+
+    [Header("å¹¿å‘Šæ¢å¤")]
+    public Button adStaminaButton;         // çœ‹å¹¿å‘Šå›ä½“åŠ›çš„æŒ‰é’®
+
+    [Header("ä½“åŠ›æ˜¾ç¤º")]
+    public Text staminaText;               // ä½“åŠ›æ•°å€¼æ–‡å­—
+    public Slider staminaSlider;           // ä½“åŠ›è¿›åº¦æ¡
+
+    [Header("é‡‘å¸æ˜¾ç¤º")]
+    public Text coinText;                  // é‡‘å¸æ•°å€¼æ–‡å­—
+
+    [Header("åº•éƒ¨æŒ‰é’®")]
+    public Button profileButton;           // åº•éƒ¨ï¼šåˆ‡æ¢åˆ°ä¸ªäººä¿¡æ¯é¢æ¿
+    public Button categoryButton;          // åº•éƒ¨ï¼šåˆ‡æ¢åˆ°åˆ†ç±»é¢æ¿
+
+    #endregion
+
+    #region ç§æœ‰çŠ¶æ€ï¼ˆè„šæœ¬å†…éƒ¨ä½¿ç”¨ï¼ŒInspector ä¸æ˜¾ç¤ºï¼‰
+
+    private bool isFlashing = false;              // é‡‘å¸ä¸è¶³é—ªçƒä¸­æ ‡è®°ï¼ˆé˜²æ­¢é‡å¤è§¦å‘é—ªçƒï¼‰
+    private string selectedCategory;              // å½“å‰é€‰ä¸­çš„åˆ†ç±»åï¼ˆå¦‚ "Kazimierz"ï¼‰
+    private int selectedImageIndex = -1;          // å½“å‰é€‰ä¸­çš„å›¾ç‰‡ç´¢å¼•
+    private string pendingPurchaseCategory;       // å¾…è´­ä¹°çš„åˆ†ç±»ï¼ˆç”¨æˆ·ç¡®è®¤è´­ä¹°å‰æš‚å­˜ï¼‰
+    private int pendingPurchaseImageIndex;        // å¾…è´­ä¹°çš„å›¾ç‰‡ç´¢å¼•
+
+    // ---------- é¢æ¿å±‚çº§ç®¡ç† ----------
+    // é¢æ¿åˆ†å››å±‚ï¼Œè¶Šé ä¸Šå±‚è¶Š"æµ®"åœ¨å±å¹•ä¸Šæ–¹ã€‚
+    // ShowPanel ä¼šæ ¹æ®è¦æ˜¾ç¤ºçš„é¢æ¿è‡ªåŠ¨éšè—å®ƒä¸Šé¢çš„å±‚ã€‚
+    // ä¾‹ï¼šæ˜¾ç¤º Layer2 é¢æ¿æ—¶ï¼ŒLayer3/Layer4 ä¼šè¢«éšè—ã€‚
+    private GameObject currentBasePanel;          // å½“å‰åŸºç¡€é¢æ¿ï¼ˆåˆ†ç±» or ä¸ªäººä¿¡æ¯ï¼‰
+    private GameObject currentLayer2Panel;        // å½“å‰ç¬¬äºŒå±‚é¢æ¿
+    private GameObject currentLayer3Panel;        // å½“å‰ç¬¬ä¸‰å±‚é¢æ¿ï¼ˆéš¾åº¦é€‰æ‹©ï¼‰
+    private GameObject currentLayer4Panel;        // å½“å‰ç¬¬å››å±‚é¢æ¿ï¼ˆè´­ä¹°ï¼‰
+
+    // ---------- é¢„è§ˆå›¾åç¨‹ç¼“å­˜ ----------
+    // æ¯ä¸ªåˆ†ç±»æŒ‰é’®éƒ½æœ‰ä¸€ä¸ª"ä¸æ–­åˆ‡æ¢é¢„è§ˆå›¾"çš„åç¨‹ã€‚
+    // ç”¨å­—å…¸å­˜èµ·æ¥ï¼Œæ–¹ä¾¿åˆ·æ–°åˆ†ç±»æŒ‰é’®æ—¶ç»Ÿä¸€åœæ­¢ï¼ˆé¿å…åç¨‹æ³„æ¼ï¼‰ã€‚
     private Dictionary<Button, Coroutine> previewCoroutines = new Dictionary<Button, Coroutine>();
 
-    private Action confirmAction;                 // Í¨ÓÃÈ·ÈÏµ¯´°µÄ"ÊÇ"»Øµ÷
-    private GameObject panelAfterNameChange;      // ¸ÄÍêÃû×ÖºóÒª·µ»ØµÄÃæ°å
-    private Sprite[] avatarSprites;               // Í·Ïñ Sprite »º´æ
+    private Action confirmAction;                 // é€šç”¨ç¡®è®¤å¼¹çª—çš„"æ˜¯"å›è°ƒ
+    private GameObject panelAfterNameChange;      // æ”¹å®Œåå­—åè¦è¿”å›çš„é¢æ¿
+    private Sprite[] avatarSprites;               // å¤´åƒ Sprite ç¼“å­˜ï¼ˆé¿å…æ¯æ¬¡éƒ½ä» Resources åŠ è½½ï¼‰
 
-    // ---------- ¾ÖÓòÍø·ÖÏí×´Ì¬ ----------
-    private List<string> discoveredDevices = new List<string>(); // ·¢ÏÖµÄÉè±¸£¨entry ×Ö·û´®£©
-    private List<string> remoteImageFiles = new List<string>();  // ´Ó·şÎñ¶ËÀ­È¡µÄÍ¼Æ¬ÁĞ±í
-    private HashSet<int> selectedRemoteIndices = new HashSet<int>(); // Ñ¡ÖĞµÄÍ¼Æ¬£¨ĞÂÁ÷³ÌÒÑ²»ÓÃ£©
-    private List<string> shareSelectedFiles = new List<string>();   // ·ÖÏíÊ±¹´Ñ¡µÄÎÄ¼ş
-    private string connectedServerIP = null;     // ÒÑÁ¬½ÓµÄ·şÎñÆ÷ IP
+    // ---------- å±€åŸŸç½‘åˆ†äº«çŠ¶æ€ ----------
+    private List<string> discoveredDevices = new List<string>(); // å·²å‘ç°çš„è®¾å¤‡ï¼ˆentry å­—ç¬¦ä¸²åˆ—è¡¨ï¼‰
+    private List<string> remoteImageFiles = new List<string>();  // ä»æœåŠ¡ç«¯æ‹‰å–çš„å›¾ç‰‡åˆ—è¡¨
+    private HashSet<int> selectedRemoteIndices = new HashSet<int>(); // é€‰ä¸­çš„è¿œç¨‹å›¾ç‰‡ï¼ˆæ–°æµç¨‹å·²ä¸ç”¨ï¼‰
+    private List<string> shareSelectedFiles = new List<string>();   // åˆ†äº«æ—¶å‹¾é€‰çš„æœ¬åœ°æ–‡ä»¶
+    private string connectedServerIP = null;     // å·²è¿æ¥çš„æœåŠ¡å™¨ IP
 
-    // ---------- ·ÀÖØÈë±êÖ¾ ----------
-    // ×÷ÓÃ£ºÄ³¸öÃæ°å¼ÓÔØÊ±£¬Èç¹ûÓÃ»§ÓÖ´¥·¢¼ÓÔØ£¬
-    //       Ö±½ÓºöÂÔµÚ¶ş´ÎÇëÇó£¬±ÜÃâ³öÏÖ"ÖØ¸´´´½¨ UI ÔªËØ"µÄ bug¡£
-    private bool isImagePanelLoading = false;     // Í¼Æ¬Ñ¡ÔñÃæ°å¼ÓÔØÖĞ
-    private bool isSharePanelLoading = false;     // ·ÖÏíÑ¡ÔñÃæ°å¼ÓÔØÖĞ
-    private bool isSharedPanelLoading = false;    // ¹²Ïí·ÖÀàÃæ°å¼ÓÔØÖĞ
+    // ---------- é˜²é‡å…¥æ ‡å¿— ----------
+    // æŸä¸ªé¢æ¿åŠ è½½æ—¶ï¼Œå¦‚æœç”¨æˆ·åˆè§¦å‘åŠ è½½ï¼Œç›´æ¥å¿½ç•¥ç¬¬äºŒæ¬¡è¯·æ±‚ï¼Œ
+    // é¿å…å‡ºç°"é‡å¤åˆ›å»º UI å…ƒç´ "çš„ bugã€‚
+    private bool isImagePanelLoading = false;     // å›¾ç‰‡é€‰æ‹©é¢æ¿åŠ è½½ä¸­
+    private bool isSharePanelLoading = false;     // åˆ†äº«é€‰æ‹©é¢æ¿åŠ è½½ä¸­
+    private bool isSharedPanelLoading = false;    // å…±äº«åˆ†ç±»é¢æ¿åŠ è½½ä¸­
 
-    // ÉÏ´«¹ÜÀíÃæ°åµ±Ç°Ë¢ĞÂĞ­³Ì£¨ÓÃÓÚË¢ĞÂÇ°È¡Ïû¾ÉĞ­³Ì£©
+    // ä¸Šä¼ ç®¡ç†é¢æ¿å½“å‰åˆ·æ–°åç¨‹ï¼ˆç”¨äºåˆ·æ–°å‰å–æ¶ˆæ—§åç¨‹ï¼‰
     private Coroutine uploadPanelCoroutine = null;
 
-    // ---------- ¶¯Ì¬ Sprite ÁĞ±í ----------
-    // ÉÏ´«/¹²ÏíÍ¼Æ¬ÊÇÔËĞĞÊ±´ÓÎÄ¼ş¶Á³öÀ´µÄ£¬´´½¨µÄ Sprite ºÍ Texture ĞèÒªÊÖ¶¯ Destroy¡£
-    // ÓÃÁĞ±íÍ³Ò»¼ÇÂ¼£¬ÇĞÃæ°åÊ±Ò»´ÎĞÔÊÍ·Å¡£
+    // ---------- åŠ¨æ€ Sprite åˆ—è¡¨ ----------
+    // ä¸Šä¼ /å…±äº«å›¾ç‰‡æ˜¯è¿è¡Œæ—¶ä»æ–‡ä»¶è¯»å‡ºæ¥çš„ï¼Œ
+    // åˆ›å»ºçš„ Sprite å’Œ Texture éœ€è¦æ‰‹åŠ¨ Destroyã€‚
+    // ç”¨åˆ—è¡¨ç»Ÿä¸€è®°å½•ï¼Œåˆ‡é¢æ¿æ—¶ä¸€æ¬¡æ€§é‡Šæ”¾ã€‚
     private List<Sprite> dynamicSprites = new List<Sprite>();
 
-    // ---------- µ÷ÊÔÈÕÖ¾ĞĞ ----------
+    // ---------- è°ƒè¯•æ—¥å¿—è¡Œ ----------
     private readonly List<string> uploadDebugLines = new List<string>();
 
     #endregion
 
-    #region ÉÏ´«ÊµÊ± Debug
+    #region ä¸Šä¼ å®æ—¶ Debug
 
     /// <summary>
-    /// ×·¼ÓÒ»ĞĞµ÷ÊÔÈÕÖ¾¡£
-    /// ¼ÈÊä³öµ½ Unity ¿ØÖÆÌ¨£¬Ò²ÏÔÊ¾µ½ uploadDebugText¡£
+    /// è¿½åŠ ä¸€è¡Œè°ƒè¯•æ—¥å¿—ã€‚
+    /// æ—¢è¾“å‡ºåˆ° Unity æ§åˆ¶å°ï¼Œä¹Ÿæ˜¾ç¤ºåˆ° uploadDebugTextã€‚
     /// 
-    /// ¡¾ÎªÊ²Ã´ÊÇ public£¿¡¿
-    /// LANShareManager ĞèÒªÔÚºóÌ¨Ïß³Ì°ÑÈÕÖ¾Ë¢µ½ÕâÀï¡£
-    /// LANShareManager ÄÚ²¿Î¬»¤ÁËÒ»¸ö¶ÓÁĞ£¬
-    /// ÔÚÖ÷Ïß³Ì Update ÀïÖğÌõµ÷ÓÃ±¾·½·¨¡£
+    /// ã€ä¸ºä»€ä¹ˆæ˜¯ publicï¼Ÿã€‘
+    /// LANShareManager éœ€è¦åœ¨ä¸»çº¿ç¨‹æŠŠæ—¥å¿—åˆ·åˆ°è¿™é‡Œã€‚
+    /// LANShareManager å†…éƒ¨ç»´æŠ¤äº†ä¸€ä¸ªåå°é˜Ÿåˆ—ï¼Œ
+    /// åœ¨ä¸»çº¿ç¨‹ Update é‡Œé€æ¡è°ƒç”¨æœ¬æ–¹æ³•ã€‚
+    /// 
+    /// ã€æ—¶é—´æˆ³ä½œç”¨ã€‘
+    /// æ¯è¡Œå¼€å¤´å¸¦ [HH:mm:ss.fff]ï¼Œæ–¹ä¾¿æ’æŸ¥"ä»€ä¹ˆæ—¶é—´å‘ç”Ÿäº†ä»€ä¹ˆ"ã€‚
     /// </summary>
+    /// <param name="message">æ—¥å¿—å†…å®¹</param>
     public void UploadDebug(string message)
     {
-        // Ç°×º´øÊ±¼ä´Á£¬·½±ãÅÅ²é"Ê²Ã´Ê±¼ä·¢ÉúÁËÊ²Ã´"
+        // æ‹¼ä¸Šæ—¶é—´æˆ³å‰ç¼€
         string line = $"[{DateTime.Now:HH:mm:ss.fff}] {message}";
+
+        // è¾“å‡ºåˆ° Unity æ§åˆ¶å°ï¼ˆæ–¹ä¾¿ PC ç«¯è°ƒè¯•ï¼‰
         Debug.Log(line);
 
-        // Ã»°ó¶¨ Text ¾ÍÖ»½ø¿ØÖÆÌ¨
-        if (uploadDebugText == null)
-            return;
+        // å¦‚æœæ²¡ç»‘å®š Text å°±åªè¿›æ§åˆ¶å°
+        if (uploadDebugText == null) return;
 
+        // åŠ åˆ°å†…å­˜åˆ—è¡¨
         uploadDebugLines.Add(line);
 
-        // ³¬¹ıÉÏÏŞ¾ÍÒÆ³ı×îÀÏµÄĞĞ
+        // è¶…è¿‡ä¸Šé™å°±ç§»é™¤æœ€è€çš„è¡Œï¼ˆé˜²æ­¢å†…å­˜çˆ†æ‰ï¼‰
         int maxLines = Mathf.Max(10, uploadDebugMaxLines);
         while (uploadDebugLines.Count > maxLines)
             uploadDebugLines.RemoveAt(0);
 
-        // ÓÃ»»ĞĞ·ûÆ´½ÓËùÓĞĞĞ£¬Ò»´ÎĞÔ¸³¸ø Text
+        // ç”¨æ¢è¡Œç¬¦æ‹¼æ¥æ‰€æœ‰è¡Œï¼Œä¸€æ¬¡æ€§èµ‹ç»™ Text
         uploadDebugText.text = string.Join("\n", uploadDebugLines);
     }
 
+    /// <summary>æ¸…ç©ºè°ƒè¯•æ—¥å¿—ï¼ˆåˆ‡åœºæ™¯æˆ–é‡æ–°å¼€å§‹æ—¶ç”¨ï¼‰ã€‚</summary>
     private void ClearUploadDebug()
     {
         uploadDebugLines.Clear();
@@ -302,36 +317,44 @@ public class MainMenuManager : MonoBehaviour
 
     #endregion
 
-    #region Unity ÉúÃüÖÜÆÚ
+    #region Unity ç”Ÿå‘½å‘¨æœŸ
 
+    /// <summary>
+    /// Awake åœ¨ç‰©ä½“åˆ›å»ºæ—¶ç«‹å³è°ƒç”¨ï¼ˆæ—©äº Startï¼‰ã€‚
+    /// è¿™é‡Œåªåšæœ€ç®€å•çš„äº‹ï¼šè®¾ç½®å•ä¾‹ã€‚
+    /// </summary>
     private void Awake()
     {
-        // ÉèÖÃÈ«¾Öµ¥Àı
+        // è®¾ç½®å…¨å±€å•ä¾‹ï¼Œè®© LANShareManager ç­‰èƒ½è®¿é—®åˆ°
         Instance = this;
 
-        // ²âÊÔÓÃ£ºÇå¿ÕËùÓĞ PlayerPrefs£¨ÕıÊ½·¢²¼Ê±Îñ±Ø×¢ÊÍµô£¡£©
+        // æµ‹è¯•ç”¨ï¼šæ¸…ç©ºæ‰€æœ‰ PlayerPrefsï¼ˆæ­£å¼å‘å¸ƒæ—¶åŠ¡å¿…æ³¨é‡Šæ‰ï¼ï¼‰
         // GameDataManager.ResetForEditor();
     }
 
+    /// <summary>
+    /// Start åœ¨ç‰©ä½“ç¬¬ä¸€å¸§å¯ç”¨æ—¶è°ƒç”¨ã€‚
+    /// è¿™é‡Œåšæ‰€æœ‰çš„åˆå§‹åŒ–ï¼šç»‘å®šæŒ‰é’®äº‹ä»¶ã€åˆå§‹åŒ– UI æ˜¾ç¤ºã€åˆå§‹åŒ–æ•°æ®ã€‚
+    /// </summary>
     private void Start()
     {
-        // Çå¿ÕÉÏ´Î³¡¾°ÒÅÁôµÄÈÕÖ¾
+        // æ¸…ç©ºä¸Šæ¬¡åœºæ™¯é—ç•™çš„æ—¥å¿—ï¼Œå¹¶æ‰“å°ä¸€æ¡"ä¸»èœå•å¯åŠ¨"
         ClearUploadDebug();
-        UploadDebug("========== Ö÷²Ëµ¥Æô¶¯ ==========");
+        UploadDebug("========== ä¸»èœå•å¯åŠ¨ ==========");
 
-        // ¶©ÔÄ"·ÖÏíÍ£Ö¹"ÊÂ¼ş
+        // è®¢é˜…"åˆ†äº«åœæ­¢"äº‹ä»¶ï¼ˆå½“ LANShareManager åœæ­¢åˆ†äº«æ—¶ä¼šå›è°ƒ HandleSharingStoppedï¼‰
         LANShareManager.Instance.OnSharingStopped += HandleSharingStopped;
 
-        // µÈ AB °ü¼ÓÔØÍê³ÉºóÉú³É·ÖÀà°´Å¥
+        // å¯åŠ¨åç¨‹ï¼Œç­‰ AssetBundle åŠ è½½å®Œæˆåç”Ÿæˆåˆ†ç±»æŒ‰é’®
         StartCoroutine(WaitForAssetBundle());
 
-        // ========== ÉèÖÃÃæ°å ==========
+        // ========== è®¾ç½®é¢æ¿ ==========
         settingsButton.onClick.AddListener(OpenSettingsPanel);
         settingsCloseButton.onClick.AddListener(() => ShowPanel(profilePanel));
         stopBGMButton.onClick.AddListener(ToggleBGM);
-        UpdateBGMButtonText();
+        UpdateBGMButtonText();   // æ ¹æ®å½“å‰ BGM æ’­æ”¾çŠ¶æ€æ›´æ–°æŒ‰é’®æ–‡å­—
 
-        // ³õÊ¼»¯ BGM »¬Ìõ
+        // åˆå§‹åŒ– BGM éŸ³é‡æ»‘æ¡
         bgmSlider.minValue = 0f;
         bgmSlider.maxValue = 1f;
         bgmSlider.value = SoundManager.Instance != null ? SoundManager.Instance.BGMVolume : 0.5f;
@@ -340,7 +363,7 @@ public class MainMenuManager : MonoBehaviour
             if (SoundManager.Instance != null) SoundManager.Instance.SetBGMVolume(v);
         });
 
-        // ³õÊ¼»¯ÒôĞ§»¬Ìõ
+        // åˆå§‹åŒ–éŸ³æ•ˆéŸ³é‡æ»‘æ¡
         sfxSlider.minValue = 0f;
         sfxSlider.maxValue = 1f;
         sfxSlider.value = SoundManager.Instance != null ? SoundManager.Instance.SFXVolume : 1f;
@@ -351,44 +374,48 @@ public class MainMenuManager : MonoBehaviour
 
         quitGameButton.onClick.AddListener(QuitGame);
 
-        // ========== Í£Ö¹¹ã²¥ ==========
-        // ÓÃ»§µã"Í£Ö¹¹ã²¥/¶Ï¿ª"°´Å¥£ºÍ£Ö¹·ÖÏí + ¶Ï¿ªÁ¬½Ó + »Øµ½»ù´¡Ãæ°å
+        // ========== åœæ­¢å¹¿æ’­ ==========
+        // ç‚¹å‡»ï¼šåœæ­¢åˆ†äº« + æ–­å¼€è¿æ¥ + å›åˆ°åŸºç¡€é¢æ¿
         stopBroadcastButton.onClick.AddListener(() =>
         {
-            UploadDebug("========== µã»÷¡¾Í£Ö¹¹ã²¥¡¿ ==========");
+            UploadDebug("========== ç‚¹å‡»ã€åœæ­¢å¹¿æ’­ã€‘ ==========");
             LANShareManager.Instance.StopSharing();
             LANShareManager.Instance.DisconnectFromServer();
-            shareStatusText.text = "Á¬½ÓÒÑ¶Ï¿ª";
-            ShowPanel(currentBasePanel ?? profilePanel);
+            shareStatusText.text = "è¿æ¥å·²æ–­å¼€";
+            ShowPanel(currentBasePanel ?? profilePanel);  // ?? æ˜¯"å¦‚æœå‰é¢æ˜¯ null å°±ç”¨åé¢"
         });
 
-        // ========== ¾ÖÓòÍø·ÖÏí ==========
+        // ========== å±€åŸŸç½‘åˆ†äº« ==========
         shareButton.onClick.AddListener(OnShareButtonClicked);
         receiveButton.onClick.AddListener(OnReceiveButtonClicked);
 
+        // å–æ¶ˆå‘ç°ï¼šåœæ­¢ç›‘å¬å¹¿æ’­ï¼Œå›åˆ°åŸºç¡€é¢æ¿
         cancelDiscoverButton.onClick.AddListener(() =>
         {
-            UploadDebug("========== È¡Ïû·¢ÏÖ ==========");
+            UploadDebug("========== å–æ¶ˆå‘ç° ==========");
             LANShareManager.Instance.StopDiscovery();
             ShowPanel(currentBasePanel ?? categoryScrollView);
         });
 
+        // å–æ¶ˆè¿æ¥ï¼šæ–­å¼€ TCP è¿æ¥ï¼Œå›åˆ°åŸºç¡€é¢æ¿
         cancelConnectButton.onClick.AddListener(() =>
         {
-            UploadDebug("========== È¡ÏûÁ¬½Ó ==========");
+            UploadDebug("========== å–æ¶ˆè¿æ¥ ==========");
             LANShareManager.Instance.DisconnectFromServer();
             ShowPanel(currentBasePanel ?? categoryScrollView);
         });
 
         downloadSelectedButton.onClick.AddListener(DownloadSelectedImages);
         startSharingButton.onClick.AddListener(StartSharingSelectedFiles);
+
+        // å–æ¶ˆåˆ†äº«é€‰æ‹©ï¼šå›åˆ°åŸºç¡€é¢æ¿
         cancelShareSelectButton.onClick.AddListener(() =>
         {
-            UploadDebug("========== È¡ÏûÑ¡Ôñ·ÖÏíÎÄ¼ş ==========");
+            UploadDebug("========== å–æ¶ˆé€‰æ‹©åˆ†äº«æ–‡ä»¶ ==========");
             ShowPanel(currentBasePanel ?? profilePanel);
         });
 
-        // ========== ¸öÈËĞÅÏ¢ ==========
+        // ========== ä¸ªäººä¿¡æ¯ ==========
         changeNameButton.onClick.AddListener(OnChangeNameClicked);
         dailyPuzzleButton.onClick.AddListener(OnDailyPuzzleClicked);
 
@@ -404,28 +431,28 @@ public class MainMenuManager : MonoBehaviour
 
         nameConfirmButton.onClick.AddListener(OnNameConfirmed);
 
-        // ========== Í¨ÓÃ ==========
+        // ========== é€šç”¨ ==========
         confirmYesButton.onClick.AddListener(OnConfirmYes);
         confirmNoButton.onClick.AddListener(() => confirmPanel.SetActive(false));
 
-        // µ×²¿°´Å¥£ºÇĞ»»»ù´¡Ãæ°å
+        // åº•éƒ¨å¯¼èˆªæŒ‰é’®ï¼šåˆ‡æ¢åŸºç¡€é¢æ¿
         profileButton.onClick.AddListener(() => ShowPanel(profilePanel));
         categoryButton.onClick.AddListener(() => ShowPanel(categoryScrollView));
 
         sharedCloseButton.onClick.AddListener(() => ShowPanel(categoryScrollView));
 
-        // ÄÑ¶ÈÃæ°åµÄÈ¡Ïû°´Å¥£º·µ»Øµ½ÉÏÒ»²ã
+        // éš¾åº¦é¢æ¿çš„å–æ¶ˆæŒ‰é’®ï¼šè¿”å›åˆ°ä¸Šä¸€å±‚ï¼ˆä¼˜å…ˆ Layer2ï¼Œå…¶æ¬¡åŸºç¡€å±‚ï¼‰
         difficultyCancelButton.onClick.AddListener(() =>
         {
             if (currentLayer2Panel != null) ShowPanel(currentLayer2Panel);
             else ShowPanel(currentBasePanel ?? categoryScrollView);
         });
 
-        // ========== ÌåÁ¦ÏµÍ³³õÊ¼»¯ ==========
-        GameDataManager.InitStaminaSystem();
-        StartCoroutine(UpdateStaminaUI());   // Ã¿ÃëË¢ĞÂÌåÁ¦ÏÔÊ¾
+        // ========== ä½“åŠ›ç³»ç»Ÿåˆå§‹åŒ– ==========
+        GameDataManager.InitStaminaSystem();     // é¦–æ¬¡å¯åŠ¨æ—¶ç»™æ»¡ä½“åŠ›
+        StartCoroutine(UpdateStaminaUI());        // æ¯ç§’åˆ·æ–°ä½“åŠ›æ˜¾ç¤º
 
-        // Ê×´ÎÓÎÏ·ÈÃÍæ¼ÒÊäÈëÃû×Ö£¬·ñÔòÖ±½Ó½ø·ÖÀàÃæ°å
+        // é¦–æ¬¡æ¸¸æˆè®©ç©å®¶è¾“å…¥åå­—ï¼Œå¦åˆ™ç›´æ¥è¿›åˆ†ç±»é¢æ¿
         if (string.IsNullOrEmpty(GameDataManager.PlayerName))
         {
             panelAfterNameChange = categoryScrollView;
@@ -436,15 +463,18 @@ public class MainMenuManager : MonoBehaviour
             ShowPanel(categoryScrollView);
         }
 
-        // ========== ÄÑ¶È°´Å¥ ==========
+        // ========== éš¾åº¦æŒ‰é’® ==========
+        // 2Ã—2 = ç®€å•ï¼Œ8Ã—8 = æ™®é€šï¼Œ10Ã—10 = å›°éš¾
         easyButton.onClick.AddListener(() => StartGame(2));
         normalButton.onClick.AddListener(() => StartGame(8));
         hardButton.onClick.AddListener(() => StartGame(10));
 
-        // ========== ¹ã¸æÓë¹ºÂò ==========
+        // ========== å¹¿å‘Šä¸è´­ä¹° ==========
         adStaminaButton.onClick.AddListener(OnAdStaminaClicked);
 
         confirmPurchaseButton.onClick.AddListener(ConfirmPurchase);
+
+        // å–æ¶ˆè´­ä¹°ï¼šå›åˆ°ä¸Šä¸€å±‚
         cancelPurchaseButton.onClick.AddListener(() =>
         {
             if (currentLayer2Panel != null) ShowPanel(currentLayer2Panel);
@@ -453,11 +483,11 @@ public class MainMenuManager : MonoBehaviour
 
         closeImagePanelButton.onClick.AddListener(() => ShowPanel(currentBasePanel ?? categoryScrollView));
 
-        // ========== ³õÊ¼×´Ì¬ ==========
+        // ========== åˆå§‹çŠ¶æ€ ==========
         UpdateCoinDisplay();
-        loadingPanel.SetActive(false);   // ¼ÓÔØÃæ°åÄ¬ÈÏÒş²Ø
+        loadingPanel.SetActive(false);   // åŠ è½½é¢æ¿é»˜è®¤éšè—
 
-        // ÕâĞ©Ãæ°åÒ»¿ªÊ¼¶¼ÒªÒş²Ø
+        // è¿™äº›é¢æ¿ä¸€å¼€å§‹éƒ½è¦éšè—ï¼ˆç­‰ç”¨æˆ·æ“ä½œåå†æ˜¾ç¤ºï¼‰
         avatarSelectPanel.SetActive(false);
         shareSelectPanel.SetActive(false);
         deviceListPanel.SetActive(false);
@@ -466,41 +496,53 @@ public class MainMenuManager : MonoBehaviour
         settingsPanel.SetActive(false);
     }
 
+    /// <summary>
+    /// OnEnable åœ¨ç‰©ä½“æ¯æ¬¡è¢«æ¿€æ´»æ—¶è°ƒç”¨ã€‚
+    /// ä¸»è¦ç”¨äº"ä»æ¸¸æˆåœºæ™¯è¿”å›ä¸»èœå•"æ—¶åˆ·æ–°æ•°æ®ã€‚
+    /// </summary>
     private void OnEnable()
     {
-        // Ã¿´ÎÎïÌå±»¼¤»îÊ±Ë¢ĞÂ½ğ±ÒºÍÍæ¼ÒĞÅÏ¢£¨±ÈÈç´ÓÓÎÏ··µ»ØÖ÷²Ëµ¥£©
+        // ä»æ¸¸æˆè¿”å›æ—¶ï¼Œé‡‘å¸å’Œç©å®¶æ•°æ®å¯èƒ½å·²ç»å˜äº†ï¼Œéœ€è¦åˆ·æ–° UI
         UpdateCoinDisplay();
         UpdateProfileUI();
     }
 
+    /// <summary>
+    /// OnDestroy åœ¨ç‰©ä½“è¢«é”€æ¯æ—¶è°ƒç”¨ã€‚
+    /// æ¸…ç†å•ä¾‹ã€å–æ¶ˆäº‹ä»¶è®¢é˜…ã€é‡Šæ”¾åŠ¨æ€çº¹ç†ã€‚
+    /// </summary>
     private void OnDestroy()
     {
-        // Çå¿Õµ¥Àı
+        // æ¸…ç©ºå•ä¾‹ï¼ˆä¸‹æ¬¡è¿›å…¥ä¸»èœå•ä¼šé‡æ–°èµ‹å€¼ï¼‰
         if (Instance == this) Instance = null;
 
-        // È¡ÏûÊÂ¼ş¶©ÔÄ£¨·ÀÖ¹ÄÚ´æĞ¹Â©£©
+        // å–æ¶ˆäº‹ä»¶è®¢é˜…ï¼ˆé˜²æ­¢å†…å­˜æ³„æ¼ï¼‰
         if (LANShareManager.Instance != null)
             LANShareManager.Instance.OnSharingStopped -= HandleSharingStopped;
 
-        // ÊÍ·Å¶¯Ì¬ÎÆÀí£¬±ÜÃâÏÔ´æĞ¹Â©
+        // é‡Šæ”¾åŠ¨æ€åˆ›å»ºçš„ Sprite å’Œ Texture
         ReleaseDynamicSprites();
     }
 
     #endregion
 
-    #region AssetBundle µÈ´ı
+    #region AssetBundle ç­‰å¾…
 
     /// <summary>
-    /// µÈ´ı AssetBundleManager ¼ÓÔØÍê±Ï£¬ÔÙÉú³É·ÖÀà°´Å¥¡£
+    /// ç­‰å¾… AssetBundleManager åŠ è½½å®Œæ¯•ï¼Œå†ç”Ÿæˆåˆ†ç±»æŒ‰é’®ã€‚
     /// 
-    /// ¡¾ÎªÊ²Ã´ÒªµÈ£¿¡¿
-    /// ·ÖÀà°´Å¥ĞèÒªÏÔÊ¾Ô¤ÀÀÍ¼£¬Ô¤ÀÀÍ¼À´×Ô AB °ü¡£
-    /// AB ¼ÓÔØÊÇÒì²½µÄ£¨¿ÉÄÜ¼¸Ãë£©£¬ËùÒÔÕâÀïÂÖÑ¯µÈ´ı¡£
+    /// ã€ä¸ºä»€ä¹ˆè¦ç­‰ï¼Ÿã€‘
+    /// åˆ†ç±»æŒ‰é’®éœ€è¦æ˜¾ç¤ºé¢„è§ˆå›¾ï¼Œé¢„è§ˆå›¾æ¥è‡ª AB åŒ…ã€‚
+    /// AB åŠ è½½æ˜¯å¼‚æ­¥çš„ï¼ˆå¯èƒ½å‡ ç§’ï¼‰ï¼Œæ‰€ä»¥è¿™é‡Œç”¨åç¨‹è½®è¯¢ç­‰å¾…ã€‚
+    /// 
+    /// ã€æ‰§è¡Œæµç¨‹ã€‘
+    /// 1. while å¾ªç¯æ¯å¸§æ£€æŸ¥ä¸€æ¬¡ IsLoaded
+    /// 2. åŠ è½½å®Œæˆåï¼Œç”Ÿæˆåˆ†ç±»æŒ‰é’® + åˆ·æ–°é‡‘å¸ + åˆ·æ–°ä¸ªäººä¿¡æ¯
     /// </summary>
     private IEnumerator WaitForAssetBundle()
     {
         while (AssetBundleManager.Instance == null || !AssetBundleManager.Instance.IsLoaded)
-            yield return null;   // Ã¿Ö¡¼ì²éÒ»´Î
+            yield return null;   // æ¯å¸§æ£€æŸ¥ä¸€æ¬¡ï¼Œä¸é˜»å¡ä¸»çº¿ç¨‹
 
         GenerateCategoryButtons();
         UpdateCoinDisplay();
@@ -509,26 +551,30 @@ public class MainMenuManager : MonoBehaviour
 
     #endregion
 
-    #region Ãæ°å¹ÜÀí
+    #region é¢æ¿ç®¡ç†
 
     /// <summary>
-    /// ÏÔÊ¾Ö¸¶¨Ãæ°å£¬²¢×Ô¶¯Òş²ØÆäËû²»¸ÃÏÔÊ¾µÄÃæ°å¡£
+    /// æ˜¾ç¤ºæŒ‡å®šé¢æ¿ï¼Œå¹¶è‡ªåŠ¨éšè—å…¶ä»–ä¸è¯¥æ˜¾ç¤ºçš„é¢æ¿ã€‚
     /// 
-    /// ¡¾Ãæ°å·Ö²ã¡¿
-    /// - »ù´¡²ã£ºcategoryScrollView£¨·ÖÀà£©¡¢profilePanel£¨¸öÈËĞÅÏ¢£©
-    /// - µÚ 2 ²ã£ºimageSelectPanel¡¢favoritesPanel¡¢uploadManagePanel¡¢
-    ///           avatarSelectPanel¡¢shareSelectPanel¡¢deviceListPanel¡¢
-    ///           remoteImagePanel¡¢sharedImagePanel¡¢settingsPanel
-    /// - µÚ 3 ²ã£ºdifficultyPanel
-    /// - µÚ 4 ²ã£ºpurchasePanel
-    /// - ÌØÊâ£ºnameInputPanel£¨¶ÀÕ¼£¬³¬¸ß²ã¼¶£©
+    /// ã€é¢æ¿åˆ†å±‚ã€‘
+    /// - åŸºç¡€å±‚ï¼ˆBaseï¼‰ï¼š
+    ///     categoryScrollViewï¼ˆåˆ†ç±»ï¼‰ã€profilePanelï¼ˆä¸ªäººä¿¡æ¯ï¼‰
+    /// - ç¬¬ 2 å±‚ï¼ˆLayer2ï¼‰ï¼š
+    ///     imageSelectPanelã€favoritesPanelã€uploadManagePanelã€
+    ///     avatarSelectPanelã€shareSelectPanelã€deviceListPanelã€
+    ///     remoteImagePanelã€sharedImagePanelã€settingsPanel
+    /// - ç¬¬ 3 å±‚ï¼ˆLayer3ï¼‰ï¼šdifficultyPanelï¼ˆéš¾åº¦é€‰æ‹©ï¼‰
+    /// - ç¬¬ 4 å±‚ï¼ˆLayer4ï¼‰ï¼špurchasePanelï¼ˆè´­ä¹°ï¼‰
+    /// - ç‰¹æ®Šå±‚ï¼šnameInputPanelï¼ˆç‹¬å ï¼Œæœ€é«˜å±‚çº§ï¼‰
     /// 
-    /// ¡¾ºËĞÄË¼Â·¡¿
-    /// ¸ù¾İÒªÏÔÊ¾µÄÃæ°åÊôÓÚÄÄÒ»²ã£¬ÏÈÒş²ØËüÉÏÃæËùÓĞ²ã£¬
-    /// ÔÙÏÔÊ¾Ä¿±êÃæ°å¡£
+    /// ã€æ ¸å¿ƒæ€è·¯ã€‘
+    /// å…ˆåˆ¤æ–­è¦æ˜¾ç¤ºçš„é¢æ¿å±äºå“ªä¸€å±‚ï¼Œ
+    /// ç„¶åéšè—å®ƒä¸Šé¢æ‰€æœ‰å±‚ + åŒå±‚çš„å…¶ä»–é¢æ¿ï¼Œ
+    /// æœ€åæ˜¾ç¤ºç›®æ ‡é¢æ¿å¹¶ç½®é¡¶ã€‚
     /// </summary>
     private void ShowPanel(GameObject panelToShow)
     {
+        // å‚æ•°ä¸º nullï¼šåªéšè—æµ®å±‚ï¼Œä¸æ¸…ç©ºåŸºç¡€å±‚
         if (panelToShow == null)
         {
             HideOverlayPanels();
@@ -536,28 +582,28 @@ public class MainMenuManager : MonoBehaviour
             return;
         }
 
-        // ÇĞ»»Ãæ°åÊ±ÏÈ¹ØµôÈ·ÈÏµ¯´°
+        // åˆ‡æ¢é¢æ¿æ—¶ï¼Œå…ˆå…³æ‰å¯èƒ½è¿˜å¼€ç€çš„ç¡®è®¤å¼¹çª—
         confirmPanel.SetActive(false);
 
-        // ---------- »ù´¡Ãæ°å ----------
+        // ---------- æƒ…å†µ 1ï¼šåŸºç¡€é¢æ¿ ----------
         if (panelToShow == categoryScrollView || panelToShow == profilePanel)
         {
-            HideOverlayPanels();
+            HideOverlayPanels();   // éšè—æ‰€æœ‰æµ®å±‚
             categoryScrollView.SetActive(panelToShow == categoryScrollView);
             profilePanel.SetActive(panelToShow == profilePanel);
             currentBasePanel = panelToShow;
-            panelToShow.transform.SetAsLastSibling();  // ·Åµ½ UI ×îÉÏ²ã
+            panelToShow.transform.SetAsLastSibling();   // æ”¾åˆ° UI æœ€ä¸Šå±‚ï¼ˆé˜²æ­¢è¢«é®æŒ¡ï¼‰
         }
-        // ---------- µÚ¶ş²ãÃæ°å ----------
+        // ---------- æƒ…å†µ 2ï¼šç¬¬äºŒå±‚é¢æ¿ ----------
         else if (panelToShow == imageSelectPanel || panelToShow == favoritesPanel ||
                  panelToShow == uploadManagePanel || panelToShow == avatarSelectPanel ||
                  panelToShow == shareSelectPanel || panelToShow == deviceListPanel ||
                  panelToShow == remoteImagePanel || panelToShow == sharedImagePanel ||
                  panelToShow == settingsPanel)
         {
-            HidePanelsAboveLayer2();   // ÏÈÒş²ØµÚÈı¡¢ËÄ²ã
+            HidePanelsAboveLayer2();   // å…ˆéšè—ç¬¬ä¸‰ã€å››å±‚
 
-            // Òş²ØËùÓĞ»ù´¡²ãºÍµÚ¶ş²ãÃæ°å
+            // éšè—æ‰€æœ‰åŸºç¡€å±‚å’Œç¬¬äºŒå±‚é¢æ¿
             categoryScrollView.SetActive(false);
             profilePanel.SetActive(false);
 
@@ -571,7 +617,7 @@ public class MainMenuManager : MonoBehaviour
             sharedImagePanel.SetActive(false);
             settingsPanel.SetActive(false);
 
-            // ÏÔÊ¾Ä¿±êÃæ°å
+            // æ˜¾ç¤ºç›®æ ‡é¢æ¿ï¼ˆåªæ˜¾ç¤ºä¸€ä¸ªï¼‰
             if (panelToShow == imageSelectPanel) imageSelectPanel.SetActive(true);
             else if (panelToShow == favoritesPanel) favoritesPanel.SetActive(true);
             else if (panelToShow == uploadManagePanel) uploadManagePanel.SetActive(true);
@@ -585,7 +631,7 @@ public class MainMenuManager : MonoBehaviour
             currentLayer2Panel = panelToShow;
             panelToShow.transform.SetAsLastSibling();
         }
-        // ---------- µÚÈı²ã£ºÄÑ¶È ----------
+        // ---------- æƒ…å†µ 3ï¼šç¬¬ä¸‰å±‚ï¼ˆéš¾åº¦é€‰æ‹©ï¼‰ ----------
         else if (panelToShow == difficultyPanel)
         {
             HidePanelsAboveLayer3();
@@ -593,7 +639,7 @@ public class MainMenuManager : MonoBehaviour
             currentLayer3Panel = panelToShow;
             panelToShow.transform.SetAsLastSibling();
         }
-        // ---------- µÚËÄ²ã£º¹ºÂò ----------
+        // ---------- æƒ…å†µ 4ï¼šç¬¬å››å±‚ï¼ˆè´­ä¹°ï¼‰ ----------
         else if (panelToShow == purchasePanel)
         {
             HidePanelsAboveLayer4();
@@ -601,14 +647,15 @@ public class MainMenuManager : MonoBehaviour
             currentLayer4Panel = panelToShow;
             panelToShow.transform.SetAsLastSibling();
         }
-        // ---------- ÌØÊâ£ºĞÕÃûÊäÈë ----------
+        // ---------- æƒ…å†µ 5ï¼šç‰¹æ®Šï¼ˆå§“åè¾“å…¥ï¼Œç‹¬å å±å¹•ï¼‰ ----------
         else if (panelToShow == nameInputPanel)
         {
-            HideAllPanels();   // È«²¿Òş²Ø£¬¶ÀÕ¼ÆÁÄ»
+            HideAllPanels();   // å…¨éƒ¨éšè—ï¼Œè®©å§“åé¢æ¿ç‹¬å 
             nameInputPanel.SetActive(true);
             nameInputPanel.transform.SetAsLastSibling();
 
-            // Ç¿ÖÆÌáÉı Canvas ²ã¼¶£¬È·±£ÔÚËùÓĞ UI Ö®ÉÏ
+            // å¼ºåˆ¶æå‡ Canvas å±‚çº§ï¼Œç¡®ä¿åœ¨æ‰€æœ‰ UI ä¹‹ä¸Š
+            // ï¼ˆå§“åé¢æ¿éœ€è¦ç›–ä½ä¸€åˆ‡ï¼ŒåŒ…æ‹¬å¯èƒ½å­˜åœ¨çš„æ‚¬æµ®æŒ‰é’®ï¼‰
             Canvas canvas = nameInputPanel.GetComponent<Canvas>();
             if (canvas != null)
             {
@@ -617,13 +664,17 @@ public class MainMenuManager : MonoBehaviour
             }
         }
 
-        // ---------- ÏÔÊ¾ºó×Ô¶¯´¥·¢µÄË¢ĞÂÂß¼­ ----------
+        // ---------- æ˜¾ç¤ºåè‡ªåŠ¨è§¦å‘çš„åˆ·æ–° ----------
+        // æŸäº›é¢æ¿éœ€è¦åœ¨æ˜¾ç¤ºæ—¶åˆ·æ–°å†…å®¹ï¼ˆæ¯”å¦‚ä»å­˜æ¡£è¯»å–æœ€æ–°æ•°æ®ï¼‰
         if (panelToShow == profilePanel) UpdateProfileUI();
         if (panelToShow == favoritesPanel) PopulateFavoritesPanel();
         if (panelToShow == uploadManagePanel) PopulateUploadManagePanel();
     }
 
-    /// <summary>Òş²ØËùÓĞ·Ç»ù´¡Ãæ°å£¨»ù´¡Ãæ°å±£³ÖÔ­Ñù£©¡£</summary>
+    /// <summary>
+    /// éšè—æ‰€æœ‰"æµ®å±‚"é¢æ¿ï¼ˆLayer2~4 + å§“åè¾“å…¥ï¼‰ï¼Œ
+    /// ä¿ç•™åŸºç¡€å±‚ï¼ˆåˆ†ç±» or ä¸ªäººä¿¡æ¯ï¼‰ã€‚
+    /// </summary>
     private void HideOverlayPanels()
     {
         settingsPanel.SetActive(false);
@@ -639,12 +690,13 @@ public class MainMenuManager : MonoBehaviour
         purchasePanel.SetActive(false);
         nameInputPanel.SetActive(false);
 
+        // æ¸…ç©ºå±‚çº§è®°å½•
         currentLayer2Panel = null;
         currentLayer3Panel = null;
         currentLayer4Panel = null;
     }
 
-    /// <summary>Òş²ØµÚ¶ş²ãÒÔÉÏµÄËùÓĞÃæ°å¡£</summary>
+    /// <summary>éšè—ç¬¬äºŒå±‚ä»¥ä¸Šçš„æ‰€æœ‰é¢æ¿ï¼ˆLayer2ã€3ã€4 åŠå§“åè¾“å…¥ï¼‰ã€‚</summary>
     private void HidePanelsAboveLayer2()
     {
         settingsPanel.SetActive(false);
@@ -661,7 +713,7 @@ public class MainMenuManager : MonoBehaviour
         currentLayer4Panel = null;
     }
 
-    /// <summary>Òş²ØµÚÈı²ãÒÔÉÏµÄËùÓĞÃæ°å¡£</summary>
+    /// <summary>éšè—ç¬¬ä¸‰å±‚ä»¥ä¸Šçš„æ‰€æœ‰é¢æ¿ï¼ˆLayer3ã€4 åŠå§“åè¾“å…¥ï¼‰ã€‚</summary>
     private void HidePanelsAboveLayer3()
     {
         purchasePanel.SetActive(false);
@@ -669,13 +721,13 @@ public class MainMenuManager : MonoBehaviour
         currentLayer4Panel = null;
     }
 
-    /// <summary>Òş²ØµÚËÄ²ãÒÔÉÏµÄËùÓĞÃæ°å¡£</summary>
+    /// <summary>éšè—ç¬¬å››å±‚ä»¥ä¸Šçš„æ‰€æœ‰é¢æ¿ï¼ˆLayer4 åŠå§“åè¾“å…¥ï¼‰ã€‚</summary>
     private void HidePanelsAboveLayer4()
     {
         nameInputPanel.SetActive(false);
     }
 
-    /// <summary>Òş²ØËùÓĞÃæ°å£¨°üÀ¨»ù´¡²ã£©¡£</summary>
+    /// <summary>éšè—æ‰€æœ‰é¢æ¿ï¼ˆåŒ…æ‹¬åŸºç¡€å±‚ï¼‰ï¼Œç”¨äº"å…¨éƒ¨å½’é›¶"çš„åœºæ™¯ã€‚</summary>
     private void HideAllPanels()
     {
         settingsPanel.SetActive(false);
@@ -693,6 +745,7 @@ public class MainMenuManager : MonoBehaviour
         purchasePanel.SetActive(false);
         nameInputPanel.SetActive(false);
 
+        // æ¸…ç©ºæ‰€æœ‰å±‚çº§è®°å½•
         currentBasePanel = null;
         currentLayer2Panel = null;
         currentLayer3Panel = null;
@@ -701,11 +754,15 @@ public class MainMenuManager : MonoBehaviour
 
     #endregion
 
-    #region ÉèÖÃÃæ°å
+    #region è®¾ç½®é¢æ¿
 
+    /// <summary>
+    /// æ‰“å¼€è®¾ç½®é¢æ¿ï¼ˆå…ˆåŒæ­¥å½“å‰éŸ³é‡åˆ°æ»‘æ¡ï¼‰ã€‚
+    /// </summary>
     private void OpenSettingsPanel()
     {
-        // ´ò¿ªÉèÖÃÇ°Í¬²½µ±Ç°ÒôÁ¿µ½»¬Ìõ
+        // æ‰“å¼€è®¾ç½®å‰ï¼ŒæŠŠ SoundManager é‡Œçš„å½“å‰éŸ³é‡åŒæ­¥åˆ°æ»‘æ¡ä¸Š
+        // ï¼ˆå¦åˆ™æ»‘æ¡æ˜¾ç¤ºçš„æ˜¯ä¸Šæ¬¡çš„å€¼ï¼Œå’Œå®é™…ä¸ç¬¦ï¼‰
         if (SoundManager.Instance != null)
         {
             bgmSlider.value = SoundManager.Instance.BGMVolume;
@@ -714,17 +771,23 @@ public class MainMenuManager : MonoBehaviour
         ShowPanel(settingsPanel);
     }
 
+    /// <summary>
+    /// é€€å‡ºæ¸¸æˆï¼ˆç¼–è¾‘å™¨é‡Œç”¨ç‰¹æ®Šæ–¹å¼ï¼ŒçœŸæœºä¸Šç”¨ Application.Quitï¼‰ã€‚
+    /// </summary>
     private void QuitGame()
     {
 #if UNITY_EDITOR
-        // ±à¼­Æ÷ÀïÍË³öÓÃÕâ¸ö£¨Application.Quit ÔÚ±à¼­Æ÷ÀïÎŞĞ§£©
+        // Unity ç¼–è¾‘å™¨é‡Œ Application.Quit æ— æ•ˆï¼Œéœ€è¦åœæ‰æ’­æ”¾æ¨¡å¼
         UnityEditor.EditorApplication.isPlaying = false;
 #else
-        // Õæ»úÉÏÍË³ö
+        // çœŸæœºä¸Šæ­£å¸¸é€€å‡º
         Application.Quit();
 #endif
     }
 
+    /// <summary>
+    /// åˆ‡æ¢èƒŒæ™¯éŸ³ä¹ï¼ˆæ’­æ”¾ â†” åœæ­¢ï¼‰ã€‚
+    /// </summary>
     private void ToggleBGM()
     {
         if (SoundManager.Instance == null) return;
@@ -734,60 +797,69 @@ public class MainMenuManager : MonoBehaviour
         else
             SoundManager.Instance.PlayBGM();
 
+        // åˆ‡æ¢åæ›´æ–°æŒ‰é’®æ–‡å­—
         UpdateBGMButtonText();
     }
 
+    /// <summary>
+    /// æ ¹æ®å½“å‰ BGM æ’­æ”¾çŠ¶æ€ï¼Œæ›´æ–°æŒ‰é’®ä¸Šçš„æ–‡å­—ã€‚
+    /// æ­£åœ¨æ’­æ”¾ â†’ "åœæ­¢èƒŒæ™¯éŸ³ä¹"ï¼Œå¦åˆ™ â†’ "æ’­æ”¾èƒŒæ™¯éŸ³ä¹"ã€‚
+    /// </summary>
     private void UpdateBGMButtonText()
     {
         if (stopBGMButton == null) return;
 
-        // »ñÈ¡°´Å¥ÉÏµÄ Text£¨×ÓÎïÌå£©
+        // è·å–æŒ‰é’®ä¸Šçš„ Text å­ç‰©ä½“
         Text label = stopBGMButton.GetComponentInChildren<Text>();
         if (label == null) return;
 
         bool isPlaying = SoundManager.Instance != null && SoundManager.Instance.IsBGMPlaying;
-        label.text = isPlaying ? "Í£Ö¹±³¾°ÒôÀÖ" : "²¥·Å±³¾°ÒôÀÖ";
+        label.text = isPlaying ? "åœæ­¢èƒŒæ™¯éŸ³ä¹" : "æ’­æ”¾èƒŒæ™¯éŸ³ä¹";
     }
 
     #endregion
 
-    #region ·ÖÀà°´Å¥Éú³É
+    #region åˆ†ç±»æŒ‰é’®ç”Ÿæˆ
 
     /// <summary>
-    /// Éú³É·ÖÀà°´Å¥£¨Ö÷½çÃæµÄºËĞÄ UI£©¡£
-    /// »áÏÈÇåÀí¾ÉµÄ°´Å¥ºÍĞ­³Ì£¬È»ºó´´½¨£º
-    ///   - 6 ¸öÆÕÍ¨·ÖÀà°´Å¥
-    ///   - 1 ¸ö"ÉÏ´«"°´Å¥
-    ///   - 1 ¸ö"¹²Ïí"°´Å¥
+    /// ç”Ÿæˆåˆ†ç±»æŒ‰é’®ï¼ˆä¸»ç•Œé¢çš„æ ¸å¿ƒ UIï¼‰ã€‚
+    /// 
+    /// åˆ›å»º 6 ä¸ªæ™®é€šåˆ†ç±»æŒ‰é’® + 1 ä¸ª"ä¸Šä¼ "æŒ‰é’® + 1 ä¸ª"å…±äº«"æŒ‰é’®ï¼Œå…± 8 ä¸ªã€‚
+    /// 
+    /// ã€ä¸ºä»€ä¹ˆè¦å…ˆæ¸…ç†æ—§æŒ‰é’®ï¼Ÿã€‘
+    /// å› ä¸ºæ¯æ¬¡è°ƒç”¨æœ¬æ–¹æ³•éƒ½ä¼šé‡æ–°ç”Ÿæˆï¼Œ
+    /// å¦‚æœä¸æ¸…ç†ä¼šäº§ç”Ÿ"æ—§æŒ‰é’® + æ–°æŒ‰é’®"é‡å çš„ bugã€‚
+    /// åŒæ—¶ä¹Ÿè¦åœæ­¢æ—§çš„é¢„è§ˆåç¨‹ï¼Œé¿å…æ³„æ¼ã€‚
     /// </summary>
     private void GenerateCategoryButtons()
     {
-        // ÏÈÍ£µôËùÓĞÕıÔÚÔËĞĞµÄÔ¤ÀÀÍ¼Ğ­³Ì£¨±ÜÃâĞ¹Â©£©
+        // å…ˆåœæ‰æ‰€æœ‰æ­£åœ¨è¿è¡Œçš„é¢„è§ˆå›¾åç¨‹
         foreach (var kvp in previewCoroutines)
         {
             if (kvp.Value != null) StopCoroutine(kvp.Value);
         }
         previewCoroutines.Clear();
 
-        // Ïú»ÙËùÓĞ¾ÉµÄ·ÖÀà°´Å¥
+        // é”€æ¯æ‰€æœ‰æ—§çš„åˆ†ç±»æŒ‰é’®
+        // æ³¨æ„ï¼šç”¨ for åå‘éå†æ›´å®‰å…¨ï¼ˆDestroy ä¼šè®© foreach å‡ºé—®é¢˜ï¼‰
         foreach (Transform child in categoryScrollContent)
             Destroy(child.gameObject);
 
-        // ÉèÖÃ GridLayoutGroup£¨Íø¸ñ²¼¾Ö£©
+        // è®¾ç½®ç½‘æ ¼å¸ƒå±€ï¼šä¸€è¡Œä¸¤åˆ—ï¼Œæ¯ä¸ªæ ¼å­ 350Ã—350
         GridLayoutGroup grid = categoryScrollContent.GetComponent<GridLayoutGroup>();
         if (grid == null) grid = categoryScrollContent.gameObject.AddComponent<GridLayoutGroup>();
-        grid.cellSize = new Vector2(350, 350);       // Ã¿¸ö¸ñ×Ó 350x350
-        grid.spacing = new Vector2(50, 50);          // ¼ä¾à 50
+        grid.cellSize = new Vector2(350, 350);
+        grid.spacing = new Vector2(50, 50);
         grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-        grid.constraintCount = 2;                    // Ò»ĞĞÁ½ÁĞ
+        grid.constraintCount = 2;
         grid.childAlignment = TextAnchor.UpperCenter;
 
-        // ---------- ÆÕÍ¨·ÖÀà°´Å¥ ----------
+        // ---------- æ™®é€šåˆ†ç±»æŒ‰é’® ----------
         for (int i = 0; i < GameDataManager.Categories.Length; i++)
         {
             string category = GameDataManager.Categories[i];
 
-            // ¸´ÖÆÔ¤ÖÆÌå
+            // å¤åˆ¶é¢„åˆ¶ä½“
             GameObject btnObj = Instantiate(categoryButtonPrefab, categoryScrollContent);
             Button btn = btnObj.GetComponent<Button>();
             Text label = btnObj.GetComponentInChildren<Text>();
@@ -795,44 +867,51 @@ public class MainMenuManager : MonoBehaviour
 
             if (label != null) label.text = category;
 
-            // ±Õ°ü²¶»ñ£º±ØĞëÓÃ¾Ö²¿±äÁ¿£¬·ñÔòËùÓĞ°´Å¥µÄ index ¶¼ÊÇÑ­»·½áÊøÊ±µÄÖµ
+            // é—­åŒ…æ•è·ï¼šå¿…é¡»ç”¨å±€éƒ¨å˜é‡
+            // ï¼ˆå¦åˆ™æ‰€æœ‰æŒ‰é’®çš„ index éƒ½æ˜¯å¾ªç¯ç»“æŸæ—¶çš„å€¼ï¼Œä¼šæ˜¯åŒä¸€ä¸ªæ•°ï¼‰
             int index = i;
             btn.onClick.AddListener(() => OnCategoryClicked(index));
 
-            // Æô¶¯Ô¤ÀÀÍ¼Ğ­³Ì£¨²»¶ÏÇĞ»»Ô¤ÀÀÍ¼£©
+            // å¯åŠ¨é¢„è§ˆå›¾åç¨‹ï¼ˆä¸æ–­åˆ‡æ¢é¢„è§ˆå›¾ï¼‰
             if (previewImage != null)
             {
                 Coroutine coroutine = StartCoroutine(UpdateCategoryPreview(previewImage, category));
-                previewCoroutines[btn] = coroutine;
+                previewCoroutines[btn] = coroutine;   // è®°å½•åç¨‹ï¼Œä¾¿äºåç»­åœæ­¢
             }
         }
 
-        // ---------- "ÉÏ´«"·ÖÀà°´Å¥ ----------
+        // ---------- "ä¸Šä¼ "åˆ†ç±»æŒ‰é’® ----------
+        // å®ƒæ˜¯ç‰¹æ®Šåˆ†ç±»ï¼Œç‚¹å‡»åæ˜¾ç¤ºç”¨æˆ·ä¸Šä¼ çš„å›¾ç‰‡
         GameObject uploadBtnObj = Instantiate(categoryButtonPrefab, categoryScrollContent);
         Button uploadBtn = uploadBtnObj.GetComponent<Button>();
         Text uploadLabel = uploadBtnObj.GetComponentInChildren<Text>();
         Image uploadPreview = uploadBtnObj.transform.Find("PreviewImage")?.GetComponent<Image>();
-        if (uploadLabel != null) uploadLabel.text = "ÉÏ´«";
-        if (uploadPreview != null) uploadPreview.sprite = null;   // ÉÏ´«°´Å¥ÎŞÔ¤ÀÀÍ¼
+        if (uploadLabel != null) uploadLabel.text = "ä¸Šä¼ ";
+        if (uploadPreview != null) uploadPreview.sprite = null;   // ä¸Šä¼ æŒ‰é’®æ— é¢„è§ˆå›¾
         uploadBtn.onClick.AddListener(() => OnCategoryClicked(GameDataManager.Categories.Length));
 
-        // ---------- "¹²Ïí"·ÖÀà°´Å¥ ----------
+        // ---------- "å…±äº«"åˆ†ç±»æŒ‰é’® ----------
+        // æ˜¾ç¤ºä»å…¶ä»–è®¾å¤‡ä¸‹è½½æ¥çš„å›¾ç‰‡
         GameObject sharedBtnObj = Instantiate(categoryButtonPrefab, categoryScrollContent);
         Button sharedBtn = sharedBtnObj.GetComponent<Button>();
         Text sharedLabel = sharedBtnObj.GetComponentInChildren<Text>();
         Image sharedPreview = sharedBtnObj.transform.Find("PreviewImage")?.GetComponent<Image>();
-        if (sharedLabel != null) sharedLabel.text = "¹²Ïí";
+        if (sharedLabel != null) sharedLabel.text = "å…±äº«";
         if (sharedPreview != null) sharedPreview.sprite = null;
         sharedBtn.onClick.AddListener(OnSharedCategoryClicked);
     }
 
     #endregion
 
-    #region ÌåÁ¦ÏÔÊ¾
+    #region ä½“åŠ›æ˜¾ç¤º
 
     /// <summary>
-    /// Ã¿ÃëË¢ĞÂÒ»´ÎÌåÁ¦ÏÔÊ¾¡£
-    /// ÎŞÏŞÑ­»·µÄĞ­³Ì£¬Ö»Òª MainMenuManager ´æÔÚ¾ÍÒ»Ö±ÔËĞĞ¡£
+    /// æ¯ç§’åˆ·æ–°ä¸€æ¬¡ä½“åŠ›æ˜¾ç¤ºã€‚
+    /// ç”¨æ— é™å¾ªç¯çš„åç¨‹å®ç°ï¼ˆåªè¦ MainMenuManager å­˜åœ¨å°±ä¸€ç›´è·‘ï¼‰ã€‚
+    /// 
+    /// ã€ä¸ºä»€ä¹ˆç”¨åç¨‹è€Œä¸æ˜¯ Updateï¼Ÿã€‘
+    /// ä½“åŠ›æ˜¯æ¯ 60 ç§’æ‰æ¢å¤ 1 ç‚¹ï¼Œæ²¡å¿…è¦æ¯å¸§åˆ·æ–°ã€‚
+    /// æ¯ç§’åˆ·æ–°å·²ç»è¶³å¤Ÿã€‚
     /// </summary>
     private IEnumerator UpdateStaminaUI()
     {
@@ -843,95 +922,124 @@ public class MainMenuManager : MonoBehaviour
         }
     }
 
+    /// <summary>åˆ·æ–°ä½“åŠ›æ–‡å­—å’Œè¿›åº¦æ¡ã€‚</summary>
     private void UpdateStaminaDisplay()
     {
         if (staminaText != null)
-            staminaText.text = $"ÌåÁ¦£º{GameDataManager.Stamina}/{GameDataManager.MaxStamina}";
+            staminaText.text = $"ä½“åŠ›ï¼š{GameDataManager.Stamina}/{GameDataManager.MaxStamina}";
 
         if (staminaSlider != null)
         {
             staminaSlider.maxValue = GameDataManager.MaxStamina;
             staminaSlider.value = GameDataManager.Stamina;
-            staminaSlider.interactable = false;   // Ö»ÏÔÊ¾£¬²»ÔÊĞíÍÏ
+            staminaSlider.interactable = false;   // åªæ˜¾ç¤ºï¼Œä¸å…è®¸ç”¨æˆ·æ‹–åŠ¨
         }
     }
 
     #endregion
 
-    #region ·ÖÀàÔ¤ÀÀ
+    #region åˆ†ç±»é¢„è§ˆ
 
     /// <summary>
-    /// ·ÖÀà°´Å¥µÄÔ¤ÀÀÍ¼Ñ­»·£ºÃ¿¸ô¼¸ÃëÇĞ»»Ò»ÕÅËæ»úÍ¼¡£
-    /// ÓÃµ­Èëµ­³ö¹ı¶É£¬¿´ÆğÀ´¸ü×ÔÈ»¡£
+    /// åˆ†ç±»æŒ‰é’®çš„é¢„è§ˆå›¾å¾ªç¯ã€‚
+    /// æ¯éš” previewChangeInterval ç§’åˆ‡æ¢ä¸€å¼ éšæœºå›¾ç‰‡ï¼Œå¸¦æ·¡å…¥æ·¡å‡ºæ•ˆæœã€‚
+    /// 
+    /// ã€æ€§èƒ½ä¼˜åŒ–ã€‘
+    /// åªåœ¨åˆ†ç±»é¢æ¿å¯è§æ—¶æ‰è¿è¡Œï¼Œéšè—æ—¶è·³è¿‡ï¼ˆé¿å…æ— æ„ä¹‰çš„ Canvas Rebuildï¼‰ã€‚
     /// </summary>
     private IEnumerator UpdateCategoryPreview(Image previewImage, string category)
     {
         if (previewImage == null) yield break;
 
-        // ÄÃµ½¸Ã·ÖÀàµÄËùÓĞÍ¼
+        // æ‹¿åˆ°è¯¥åˆ†ç±»ä¸‹æ‰€æœ‰ Sprite
         Sprite[] sprites = AssetBundleManager.Instance.GetCategorySprites(category);
         if (sprites.Length == 0) yield break;
 
-        // ÎŞÏŞÑ­»·£¨Ö»Òª°´Å¥»¹´æÔÚ¾ÍÒ»Ö±ÔËĞĞ£©
+        // æ— é™å¾ªç¯ï¼ˆåªè¦æŒ‰é’®è¿˜å­˜åœ¨å°±ä¸€ç›´è¿è¡Œï¼‰
         while (previewImage != null)
         {
+            // â˜… é¢æ¿ä¸å¯è§æ—¶è·³è¿‡æœ¬è½®
+            // è¿™ä¸€æ­¥å¾ˆå…³é”®ï¼šå¦‚æœä¸è·³è¿‡ï¼Œ6 ä¸ªæŒ‰é’®åŒæ—¶æ¯å¸§æ”¹ color ä¼šè§¦å‘
+            // å¤§é‡ Canvas Rebuildï¼ŒCPU ä¼šé£™åˆ° 30% å·¦å³ã€‚
+            if (categoryScrollView == null || !categoryScrollView.activeInHierarchy)
+            {
+                yield return null;
+                continue;
+            }
+
+            // éšæœºé€‰ä¸€å¼ ï¼Œç„¶åæ·¡å…¥æ·¡å‡º
             Sprite newSprite = sprites[Random.Range(0, sprites.Length)];
-            yield return StartCoroutine(FadeToSprite(previewImage, newSprite));   // µ­Èëµ­³ö
+            yield return StartCoroutine(FadeToSprite(previewImage, newSprite));
 
             if (previewImage == null) yield break;
-            yield return new WaitForSeconds(previewChangeInterval);   // Í£Áô¼¸Ãë
+
+            // åœç•™å‡ ç§’å†åˆ‡æ¢ä¸‹ä¸€å¼ 
+            yield return new WaitForSeconds(previewChangeInterval);
         }
     }
 
     /// <summary>
-    /// µ­³ö¾ÉÍ¼ ¡ú »»Í¼ ¡ú µ­ÈëĞÂÍ¼¡£
+    /// æ·¡å‡ºæ—§å›¾ â†’ æ¢å›¾ â†’ æ·¡å…¥æ–°å›¾ã€‚
+    /// 
+    /// ã€æ€§èƒ½ä¼˜åŒ–è¯´æ˜ã€‘
+    /// ä¹‹å‰æ¯å¸§æ”¹ image.colorï¼Œ60 FPS æ—¶æ¯ç§’æ”¹ 60 æ¬¡ï¼Œæ¯æ¬¡éƒ½è§¦å‘ Canvas Rebuildã€‚
+    /// æ”¹æˆæ¯ 0.05 ç§’æ”¹ä¸€æ¬¡ï¼ˆ20 æ¬¡/ç§’ï¼‰ï¼Œè§†è§‰ä¸Šå‡ ä¹çœ‹ä¸å‡ºå·®åˆ«ï¼ŒCPU é™çº¦ 3 å€ã€‚
     /// </summary>
     private IEnumerator FadeToSprite(Image image, Sprite newSprite)
     {
         if (image == null) yield break;
 
+        const float step = 0.05f;   // æ¯ 0.05 ç§’æ›´æ–°ä¸€æ¬¡é¢œè‰²
+
         float elapsed = 0f;
         Color startColor = image.color;
         Color transparentColor = new Color(startColor.r, startColor.g, startColor.b, 0f);
 
-        // µ­³ö
+        // ---------- æ·¡å‡º ----------
         while (elapsed < fadeDuration)
         {
             if (image == null) yield break;
-            elapsed += Time.deltaTime;
-            image.color = Color.Lerp(startColor, transparentColor, elapsed / fadeDuration);
-            yield return null;
+
+            elapsed += step;
+            float t = Mathf.Clamp01(elapsed / fadeDuration);   // å½’ä¸€åŒ–åˆ° 0~1
+            image.color = Color.Lerp(startColor, transparentColor, t);
+
+            yield return new WaitForSeconds(step);
         }
 
         if (image == null) yield break;
 
-        // »»Í¼£¨ÔÚÍêÈ«Í¸Ã÷Ê±½øĞĞ£¬ÓÃ»§¿´²»µ½ÇĞ»»Ë²¼ä£©
+        // ---------- æ¢å›¾ï¼ˆåœ¨å®Œå…¨é€æ˜æ—¶è¿›è¡Œï¼Œç”¨æˆ·çœ‹ä¸åˆ°åˆ‡æ¢ç¬é—´ï¼‰ ----------
         image.sprite = newSprite;
 
-        // µ­Èë
+        // ---------- æ·¡å…¥ ----------
         elapsed = 0f;
         while (elapsed < fadeDuration)
         {
             if (image == null) yield break;
-            elapsed += Time.deltaTime;
-            image.color = Color.Lerp(transparentColor, startColor, elapsed / fadeDuration);
-            yield return null;
+
+            elapsed += step;
+            float t = Mathf.Clamp01(elapsed / fadeDuration);
+            image.color = Color.Lerp(transparentColor, startColor, t);
+
+            yield return new WaitForSeconds(step);
         }
 
+        // æœ€åç¡®ä¿æ¢å¤åˆ°åŸå§‹é¢œè‰²
         if (image != null) image.color = startColor;
     }
 
     #endregion
 
-    #region ·ÖÀàµã»÷ÓëÍ¼Æ¬Ñ¡Ôñ
+    #region åˆ†ç±»ç‚¹å‡»ä¸å›¾ç‰‡é€‰æ‹©
 
     /// <summary>
-    /// µã»÷·ÖÀà°´Å¥¡£
-    /// index == Categories.Length ±íÊ¾µã»÷ÁË"ÉÏ´«"°´Å¥¡£
+    /// ç‚¹å‡»åˆ†ç±»æŒ‰é’®ã€‚
+    /// index == Categories.Length è¡¨ç¤ºç‚¹å‡»äº†"ä¸Šä¼ "æŒ‰é’®ï¼ˆç‰¹æ®Šå¤„ç†ï¼‰ã€‚
     /// </summary>
     private void OnCategoryClicked(int index)
     {
-        // µã»÷"ÉÏ´«"·ÖÀà
+        // ç‚¹å‡»"ä¸Šä¼ "åˆ†ç±»
         if (index == GameDataManager.Categories.Length)
         {
             selectedCategory = GameDataManager.UploadCategory;
@@ -940,7 +1048,7 @@ public class MainMenuManager : MonoBehaviour
             return;
         }
 
-        // µã»÷ÆÕÍ¨·ÖÀà
+        // ç‚¹å‡»æ™®é€šåˆ†ç±»
         string category = GameDataManager.Categories[index];
         selectedCategory = category;
         ShowPanel(imageSelectPanel);
@@ -948,30 +1056,34 @@ public class MainMenuManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Òì²½Ìî³äÍ¼Æ¬Ñ¡ÔñÃæ°å¡£
+    /// å¼‚æ­¥å¡«å……å›¾ç‰‡é€‰æ‹©é¢æ¿ã€‚
     /// 
-    /// ¡¾ÎªÊ²Ã´ÒªÒì²½£¿¡¿
-    /// ÉÏ´«·ÖÀàµÄÍ¼Æ¬ĞèÒª´ÓÎÄ¼şÏµÍ³¶ÁÈ¡ + ½âÂë£¨ºÄÊ±£©¡£
-    /// Èç¹ûÍ¬²½¼ÓÔØ£¬UI »á¿¨×¡¡£
+    /// ã€ä¸ºä»€ä¹ˆè¦å¼‚æ­¥ï¼Ÿã€‘
+    /// ä¸Šä¼ åˆ†ç±»çš„å›¾ç‰‡éœ€è¦ä»æ–‡ä»¶ç³»ç»Ÿè¯»å– + è§£ç ï¼Œå¯èƒ½å‡ ååˆ°å‡ ç™¾æ¯«ç§’ã€‚
+    /// ç”¨åç¨‹è®©å‡ºä¸»çº¿ç¨‹ï¼Œé¿å… UI å¡é¡¿ã€‚
+    /// 
+    /// ã€é˜²é‡å…¥ã€‘
+    /// å¦‚æœç”¨æˆ·è¿ç‚¹åˆ†ç±»æŒ‰é’®ï¼Œç¬¬ä¸€æ¬¡è¿˜æ²¡åŠ è½½å®Œå°±å¿½ç•¥åç»­è¯·æ±‚ï¼Œ
+    /// é¿å… UI å…ƒç´ é‡å¤åˆ›å»ºã€‚
     /// </summary>
     private IEnumerator OpenImageSelectPanelAsync(string category)
     {
-        // ·ÀÖØÈë£ºÉÏÒ»´Î»¹Ã»¼ÓÔØÍê¾ÍºöÂÔ
+        // é˜²é‡å…¥ï¼šä¸Šä¸€æ¬¡è¿˜æ²¡åŠ è½½å®Œå°±å¿½ç•¥
         if (isImagePanelLoading)
         {
-            Debug.Log("Í¼Æ¬Ãæ°åÕıÔÚ¼ÓÔØÖĞ£¬ºöÂÔ±¾´ÎÇëÇó");
+            Debug.Log("å›¾ç‰‡é¢æ¿æ­£åœ¨åŠ è½½ä¸­ï¼Œå¿½ç•¥æœ¬æ¬¡è¯·æ±‚");
             yield break;
         }
         isImagePanelLoading = true;
 
-        // ÊÍ·ÅÉÏÒ»´ÎµÄ¶¯Ì¬ Sprite£¨ÉÏ´«/¹²ÏíÀ´Ô´£©
+        // é‡Šæ”¾ä¸Šä¸€æ¬¡çš„åŠ¨æ€ Spriteï¼ˆä¸Šä¼ /å…±äº«æ¥æºï¼‰
         ReleaseDynamicSprites();
 
-        // ÇåÀí¾É°´Å¥
+        // æ¸…ç†æ—§æŒ‰é’®
         foreach (Transform child in imageScrollContent)
             Destroy(child.gameObject);
 
-        // ÉèÖÃÍø¸ñ²¼¾Ö
+        // è®¾ç½®ç½‘æ ¼å¸ƒå±€ï¼šä¸€è¡Œä¸‰åˆ—ï¼Œæ¯ä¸ª 300Ã—300
         GridLayoutGroup grid = imageScrollContent.GetComponent<GridLayoutGroup>();
         if (grid == null) grid = imageScrollContent.gameObject.AddComponent<GridLayoutGroup>();
         grid.cellSize = new Vector2(300, 300);
@@ -980,30 +1092,31 @@ public class MainMenuManager : MonoBehaviour
         grid.constraintCount = 3;
         grid.childAlignment = TextAnchor.UpperCenter;
 
-        // ---------- ÉÏ´«·ÖÀà£º´ÓÎÄ¼şÏµÍ³Òì²½¼ÓÔØ ----------
+        // ---------- ä¸Šä¼ åˆ†ç±»ï¼šä»æ–‡ä»¶ç³»ç»Ÿå¼‚æ­¥åŠ è½½ ----------
         if (category == GameDataManager.UploadCategory)
         {
             List<string> files = GameDataManager.GetUploadedImages();
             for (int i = 0; i < files.Count; i++)
             {
                 string path = GameDataManager.GetUploadedImagePath(files[i]);
-                if (!File.Exists(path)) continue;
+                if (!File.Exists(path)) continue;   // æ–‡ä»¶ä¸å­˜åœ¨å°±è·³è¿‡
 
                 Sprite sprite = null;
-                // yield return µÈÒì²½¼ÓÔØÍê³É
+                // yield return ç­‰å¼‚æ­¥åŠ è½½å®Œæˆï¼ˆåå°çº¿ç¨‹è¯»æ–‡ä»¶+è§£ç ï¼Œä¸»çº¿ç¨‹åˆ›å»º Spriteï¼‰
                 yield return ImageLoader.LoadSpriteFromFileAsync(path, (s) => sprite = s);
                 if (sprite == null) continue;
 
-                dynamicSprites.Add(sprite);   // ¼ÇÂ¼ÒÔ±ãºóĞøÊÍ·Å
+                dynamicSprites.Add(sprite);   // è®°å½•ï¼Œä¾¿äºåç»­é‡Šæ”¾
                 CreateImageButton(category, i, sprite, files[i]);
 
-                yield return null;   // Ã¿ÕÅÈÃ³öÒ»Ö¡£¬±£³Ö UI Á÷³©
+                yield return null;   // æ¯å¼ è®©å‡ºä¸€å¸§ï¼Œä¿æŒ UI æµç•…
             }
         }
-        // ---------- ÆÕÍ¨·ÖÀà£º´Ó AssetBundle Í¬²½¼ÓÔØ ----------
+        // ---------- æ™®é€šåˆ†ç±»ï¼šä» AssetBundle åŒæ­¥åŠ è½½ ----------
         else
         {
             Sprite[] loadedSprites = AssetBundleManager.Instance.GetCategorySprites(category);
+            // æŒ‰åå­—æ’åºï¼Œä¿è¯é¡ºåºç¨³å®š
             Array.Sort(loadedSprites, (a, b) => string.Compare(a.name, b.name));
 
             for (int i = 0; i < loadedSprites.Length; i++)
@@ -1012,7 +1125,7 @@ public class MainMenuManager : MonoBehaviour
             }
         }
 
-        // Ç¿ÖÆÖØ½¨²¼¾Ö
+        // å¼ºåˆ¶é‡å»ºå¸ƒå±€ï¼ˆç¡®ä¿ UI ç«‹å³æ˜¾ç¤ºæ­£ç¡®ï¼‰
         Canvas.ForceUpdateCanvases();
         LayoutRebuilder.ForceRebuildLayoutImmediate(imageScrollContent);
 
@@ -1020,7 +1133,7 @@ public class MainMenuManager : MonoBehaviour
     }
 
     /// <summary>
-    /// ÔÚÍ¼Æ¬Ñ¡ÔñÃæ°åÖĞ´´½¨Ò»¸öÍ¼Æ¬°´Å¥¡£
+    /// åœ¨å›¾ç‰‡é€‰æ‹©é¢æ¿ä¸­åˆ›å»ºä¸€ä¸ªå›¾ç‰‡æŒ‰é’®ã€‚
     /// </summary>
     private void CreateImageButton(string category, int imageIndex, Sprite sprite, string name)
     {
@@ -1031,34 +1144,36 @@ public class MainMenuManager : MonoBehaviour
 
         if (img != null) img.sprite = sprite;
 
-        // ÉÏ´«·ÖÀà£º²»ÏÔÊ¾¼Û¸ñ±êÇ©
         if (category == GameDataManager.UploadCategory)
         {
+            // ä¸Šä¼ åˆ†ç±»ï¼šä¸æ˜¾ç¤ºä»·æ ¼æ ‡ç­¾
             if (label != null) label.text = "";
         }
         else
         {
-            // ÆÕÍ¨·ÖÀà£ºÅĞ¶ÏÊÇ·ñ½âËø£¬Î´½âËøÏÔÊ¾¼Û¸ñ¡¢±ä»Ò
+            // æ™®é€šåˆ†ç±»ï¼šåˆ¤æ–­æ˜¯å¦è§£é”
             bool unlocked = GameDataManager.IsImageUnlocked(category, imageIndex);
             if (img != null)
+                // æœªè§£é”çš„å›¾ç‰‡æ˜¾ç¤ºåŠé€æ˜ç°
                 img.color = unlocked ? Color.white : new Color(0.5f, 0.5f, 0.5f, 0.7f);
             if (label != null)
-                label.text = unlocked ? "" : $"{GameDataManager.GetImagePrice(category, imageIndex)}½ğ±Ò";
+                // æœªè§£é”çš„æ˜¾ç¤ºä»·æ ¼
+                label.text = unlocked ? "" : $"{GameDataManager.GetImagePrice(category, imageIndex)}é‡‘å¸";
         }
 
-        // ±Õ°ü²¶»ñ
+        // é—­åŒ…æ•è·ï¼šimageIndex ä¼šè¢« lambda æ•è·ï¼Œæ‰€ä»¥è¦ç”¨å±€éƒ¨å˜é‡
         int idx = imageIndex;
         imgBtn.onClick.AddListener(() => OnImageClicked(idx));
     }
 
     /// <summary>
-    /// µã»÷Ä³ÕÅÍ¼Æ¬¡£
-    /// - ÒÑ½âËø ¡ú ½øÄÑ¶ÈÑ¡ÔñÃæ°å
-    /// - Î´½âËø ¡ú ½ø¹ºÂòÃæ°å
+    /// ç‚¹å‡»æŸå¼ å›¾ç‰‡ã€‚
+    /// - å·²è§£é” â†’ è¿›éš¾åº¦é€‰æ‹©é¢æ¿
+    /// - æœªè§£é” â†’ è¿›è´­ä¹°é¢æ¿
     /// </summary>
     private void OnImageClicked(int imageIndex)
     {
-        // ÉÏ´«·ÖÀà£ºÖ±½Ó½øÄÑ¶ÈÑ¡Ôñ£¨²»ĞèÒª½âËø£©
+        // ä¸Šä¼ åˆ†ç±»ï¼šç›´æ¥è¿›éš¾åº¦é€‰æ‹©ï¼ˆä¸Šä¼ çš„å›¾ç‰‡ä¸éœ€è¦è§£é”ï¼‰
         if (selectedCategory == GameDataManager.UploadCategory)
         {
             selectedImageIndex = imageIndex;
@@ -1068,6 +1183,7 @@ public class MainMenuManager : MonoBehaviour
 
         if (imageIndex == -1)
         {
+            // -1 è¡¨ç¤º"éšæœºå›¾ç‰‡"
             selectedImageIndex = -1;
             ShowPanel(difficultyPanel);
         }
@@ -1076,17 +1192,17 @@ public class MainMenuManager : MonoBehaviour
             string category = selectedCategory;
             if (GameDataManager.IsImageUnlocked(category, imageIndex))
             {
-                // ÒÑ½âËø ¡ú Ö±½Ó½øÄÑ¶È
+                // å·²è§£é” â†’ ç›´æ¥è¿›éš¾åº¦é€‰æ‹©
                 selectedImageIndex = imageIndex;
                 ShowPanel(difficultyPanel);
             }
             else
             {
-                // Î´½âËø ¡ú µ¯¹ºÂòÃæ°å
+                // æœªè§£é” â†’ å¼¹è´­ä¹°ç¡®è®¤
                 pendingPurchaseCategory = category;
                 pendingPurchaseImageIndex = imageIndex;
                 int price = GameDataManager.GetImagePrice(category, imageIndex);
-                purchaseText.text = $"ÊÇ·ñ»¨·Ñ {price} ½ğ±Ò½âËøÕâÕÅÍ¼Æ¬£¿";
+                purchaseText.text = $"æ˜¯å¦èŠ±è´¹ {price} é‡‘å¸è§£é”è¿™å¼ å›¾ç‰‡ï¼Ÿ";
                 ShowPanel(purchasePanel);
             }
         }
@@ -1094,16 +1210,16 @@ public class MainMenuManager : MonoBehaviour
 
     #endregion
 
-    #region ¹ºÂòÂß¼­
+    #region è´­ä¹°é€»è¾‘
 
     /// <summary>
-    /// È·ÈÏ¹ºÂò¡£
-    /// ¸ù¾İ pendingPurchaseImageIndex ÊÇ·ñÎª -1 Çø·ÖÊÇ"Âò·ÖÀà"»¹ÊÇ"ÂòÍ¼Æ¬"¡£
-    /// ±¾ÏîÄ¿·ÖÀà¶¼Ãâ·Ñ£¬ËùÒÔÊµ¼ÊÖ»»á×ß"ÂòÍ¼Æ¬"·ÖÖ§¡£
+    /// ç¡®è®¤è´­ä¹°ã€‚
+    /// æ ¹æ® pendingPurchaseImageIndex æ˜¯å¦ä¸º -1 åŒºåˆ†æ˜¯"ä¹°åˆ†ç±»"è¿˜æ˜¯"ä¹°å›¾ç‰‡"ã€‚
+    /// æœ¬é¡¹ç›®åˆ†ç±»éƒ½å…è´¹ï¼Œæ‰€ä»¥å®é™…åªä¼šèµ°"ä¹°å›¾ç‰‡"åˆ†æ”¯ã€‚
     /// </summary>
     private void ConfirmPurchase()
     {
-        // ---------- ·ÖÀà¹ºÂò ----------
+        // ---------- åˆ†ç±»è´­ä¹°ï¼ˆä¿ç•™é€»è¾‘ï¼Œå½“å‰ç”¨ä¸åˆ°ï¼‰ ----------
         if (pendingPurchaseImageIndex == -1)
         {
             int price = GameDataManager.CategoryPrices[Array.IndexOf(GameDataManager.Categories, pendingPurchaseCategory)];
@@ -1113,46 +1229,49 @@ public class MainMenuManager : MonoBehaviour
                 UpdateCoinDisplay();
                 GenerateCategoryButtons();
                 ShowPanel(categoryScrollView);
-                Debug.Log($"½âËø·ÖÀà {pendingPurchaseCategory} ³É¹¦£¡");
+                Debug.Log($"è§£é”åˆ†ç±» {pendingPurchaseCategory} æˆåŠŸï¼");
             }
             else
             {
-                purchaseText.text = "½ğ±Ò²»×ã£¡";
+                purchaseText.text = "é‡‘å¸ä¸è¶³ï¼";
                 StartCoroutine(FlashCoinTextRed());
             }
         }
-        // ---------- Í¼Æ¬¹ºÂò ----------
+        // ---------- å›¾ç‰‡è´­ä¹° ----------
         else
         {
             int price = GameDataManager.GetImagePrice(pendingPurchaseCategory, pendingPurchaseImageIndex);
             if (GameDataManager.SpendCoins(price))
             {
+                // æ‰£æ¬¾æˆåŠŸ â†’ è§£é”å›¾ç‰‡
                 GameDataManager.UnlockImage(pendingPurchaseCategory, pendingPurchaseImageIndex);
                 UpdateCoinDisplay();
                 ShowPanel(imageSelectPanel);
-                // Ë¢ĞÂÍ¼Æ¬ÁĞ±í£¨ÏÔÊ¾×îĞÂ½âËø×´Ì¬£©
+                // åˆ·æ–°å›¾ç‰‡åˆ—è¡¨ï¼Œè®©åˆšè§£é”çš„å›¾ç‰‡æ˜¾ç¤ºæ­£å¸¸
                 StartCoroutine(OpenImageSelectPanelAsync(pendingPurchaseCategory));
-                Debug.Log($"½âËøÍ¼Æ¬ {pendingPurchaseCategory}_{pendingPurchaseImageIndex} ³É¹¦£¡");
+                Debug.Log($"è§£é”å›¾ç‰‡ {pendingPurchaseCategory}_{pendingPurchaseImageIndex} æˆåŠŸï¼");
             }
             else
             {
-                purchaseText.text = "½ğ±Ò²»×ã£¡";
+                // é‡‘å¸ä¸è¶³ â†’ æç¤º + é—ªçƒ
+                purchaseText.text = "é‡‘å¸ä¸è¶³ï¼";
                 StartCoroutine(FlashCoinTextRed());
             }
         }
     }
 
     /// <summary>
-    /// ½ğ±Ò²»×ãÊ±ÈÃ½ğ±ÒÎÄ×ÖÉÁºìÈı´Î¡£
+    /// é‡‘å¸ä¸è¶³æ—¶è®©é‡‘å¸æ–‡å­—é—ªçº¢ä¸‰æ¬¡ã€‚
     /// </summary>
     private IEnumerator FlashCoinTextRed()
     {
-        // ·ÀÖØ¸´£ºÕıÔÚÉÁµÄÊ±ºò²»ÒªÔÙÀ´Ò»´Î
+        // é˜²é‡å¤ï¼šæ­£åœ¨é—ªçš„æ—¶å€™ä¸è¦å†æ¥ä¸€æ¬¡
         if (coinText == null || isFlashing) yield break;
 
         isFlashing = true;
         Color originalColor = coinText.color;
 
+        // é—ªçº¢ â†’ æ¢å¤ â†’ é—ªçº¢ â†’ æ¢å¤ â†’ é—ªçº¢ â†’ æ¢å¤
         coinText.color = Color.red;
         yield return new WaitForSeconds(0.2f);
         coinText.color = originalColor;
@@ -1166,191 +1285,202 @@ public class MainMenuManager : MonoBehaviour
 
     #endregion
 
-    #region ÉÏ´«Í¼Æ¬¹ÜÀí
+    #region ä¸Šä¼ å›¾ç‰‡ç®¡ç†
 
+    /// <summary>æ‰“å¼€ä¸Šä¼ ç®¡ç†é¢æ¿ã€‚</summary>
     private void OpenUploadManagePanel()
     {
-        UploadDebug("´ò¿ªÉÏ´«¹ÜÀíÃæ°å");
+        UploadDebug("æ‰“å¼€ä¸Šä¼ ç®¡ç†é¢æ¿");
         ShowPanel(uploadManagePanel);
     }
 
     /// <summary>
-    /// ÇëÇóË¢ĞÂÉÏ´«¹ÜÀíÃæ°å¡£
-    /// Èç¹û¾ÉË¢ĞÂ»¹ÔÚ½øĞĞ£¬ÏÈÈ¡ÏûËü£¬ÔÙÆô¶¯ĞÂµÄ¡£
+    /// è¯·æ±‚åˆ·æ–°ä¸Šä¼ ç®¡ç†é¢æ¿ã€‚
+    /// å¦‚æœæ—§åˆ·æ–°è¿˜åœ¨è¿›è¡Œï¼Œå…ˆå–æ¶ˆå®ƒï¼Œå†å¯åŠ¨æ–°çš„ï¼ˆé¿å…ä¸¤ä¸ªåç¨‹åŒæ—¶åˆ›å»ºæŒ‰é’®ï¼‰ã€‚
     /// </summary>
     private void PopulateUploadManagePanel()
     {
-        UploadDebug("ÇëÇóË¢ĞÂÉÏ´«¹ÜÀíÃæ°å");
+        UploadDebug("è¯·æ±‚åˆ·æ–°ä¸Šä¼ ç®¡ç†é¢æ¿");
 
-        // È¡Ïû¾ÉĞ­³Ì
+        // å–æ¶ˆæ—§åç¨‹
         if (uploadPanelCoroutine != null)
         {
-            UploadDebug("·¢ÏÖ¾ÉµÄÉÏ´« UI Ë¢ĞÂĞ­³Ì£¬Í£Ö¹¾ÉĞ­³Ì");
+            UploadDebug("å‘ç°æ—§çš„ä¸Šä¼  UI åˆ·æ–°åç¨‹ï¼Œåœæ­¢æ—§åç¨‹");
             StopCoroutine(uploadPanelCoroutine);
             uploadPanelCoroutine = null;
         }
 
-        // ¼ì²é°ó¶¨
-        if (uploadManagePanel == null) { UploadDebug("ERROR: uploadManagePanel Î´°ó¶¨"); return; }
-        if (uploadScrollContent == null) { UploadDebug("ERROR: uploadScrollContent Î´°ó¶¨"); return; }
-        if (imageButtonPrefab == null) { UploadDebug("ERROR: imageButtonPrefab Î´°ó¶¨"); return; }
+        // æ£€æŸ¥å¼•ç”¨æ˜¯å¦éƒ½ç»‘å®šäº†ï¼ˆæå‰æ£€æŸ¥ï¼Œé¿å…å‡ºç° null å¼‚å¸¸ï¼‰
+        if (uploadManagePanel == null) { UploadDebug("ERROR: uploadManagePanel æœªç»‘å®š"); return; }
+        if (uploadScrollContent == null) { UploadDebug("ERROR: uploadScrollContent æœªç»‘å®š"); return; }
+        if (imageButtonPrefab == null) { UploadDebug("ERROR: imageButtonPrefab æœªç»‘å®š"); return; }
 
+        // å¯åŠ¨æ–°çš„åˆ·æ–°åç¨‹
         uploadPanelCoroutine = StartCoroutine(PopulateUploadManagePanelAsync());
     }
 
     /// <summary>
-    /// °Ñ PNG ×Ö½Ú±£´æµ½ Uploads Ä¿Â¼¡£
-    /// ²½Öè£ºÑéÖ¤ PNG ¡ú Ğ´ÎÄ¼ş ¡ú Ğ´ PlayerPrefs ¡ú Ë¢ĞÂ UI¡£
+    /// æŠŠ PNG å­—èŠ‚ä¿å­˜åˆ° Uploads ç›®å½•ã€‚
+    /// 
+    /// ã€æ‰§è¡Œæ­¥éª¤ã€‘
+    /// 1. éªŒè¯ PNG æœ‰æ•ˆæ€§ï¼ˆç”¨ LoadImage è¯•è§£ç ä¸€æ¬¡ï¼‰
+    /// 2. å†™å…¥æ–‡ä»¶åˆ° Uploads ç›®å½•
+    /// 3. æŠŠæ–‡ä»¶åå†™å…¥ PlayerPrefs çš„ UploadImages åˆ—è¡¨
+    /// 4. åˆ·æ–°åˆ†ç±»æŒ‰é’®ï¼ˆå¦‚æœåˆ†ç±»é¢æ¿å¯è§ï¼‰
+    /// 5. åˆ·æ–°ä¸Šä¼ ç®¡ç† UI
     /// </summary>
     private IEnumerator SaveUploadedPng(byte[] pngBytes)
     {
-        UploadDebug("½øÈë SaveUploadedPng()");
+        UploadDebug("è¿›å…¥ SaveUploadedPng()");
 
-        // ---------- ²ÎÊı¼ì²é ----------
-        if (pngBytes == null) { UploadDebug("ERROR: pngBytes == null"); ShowConfirm("ÉÏ´«Ê§°Ü:\nPNG ±àÂëÊ§°Ü", null); yield break; }
+        // ---------- å‚æ•°æ£€æŸ¥ ----------
+        if (pngBytes == null) { UploadDebug("ERROR: pngBytes == null"); ShowConfirm("ä¸Šä¼ å¤±è´¥:\nPNG ç¼–ç å¤±è´¥", null); yield break; }
         UploadDebug($"PNG bytes = {pngBytes.Length}");
-        if (pngBytes.Length < 100) { UploadDebug("ERROR: PNG ×Ö½Ú³¤¶È < 100"); ShowConfirm("ÉÏ´«Ê§°Ü:\nPNG ±àÂëÊ§°Ü", null); yield break; }
+        if (pngBytes.Length < 100) { UploadDebug("ERROR: PNG å­—èŠ‚é•¿åº¦ < 100"); ShowConfirm("ä¸Šä¼ å¤±è´¥:\nPNG ç¼–ç å¤±è´¥", null); yield break; }
 
-        // ---------- 1. ÑéÖ¤ PNG ÓĞĞ§ĞÔ ----------
+        // ---------- 1. éªŒè¯ PNG æœ‰æ•ˆæ€§ ----------
+        // ä¸ºä»€ä¹ˆï¼Ÿæœ‰æ—¶ä¸Šæ¸¸ç”Ÿæˆçš„å­—èŠ‚æ•°ç»„å¯èƒ½æŸåï¼Œå†™å…¥å‰å…ˆéªŒè¯ä¸€éæ›´ä¿é™©ã€‚
         Texture2D testTex = null;
         try
         {
-            // ÓÃ LoadImage ³¢ÊÔ½âÂë£¬³É¹¦ËµÃ÷ÊÇºÏ·¨ PNG
             testTex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
             bool valid = testTex.LoadImage(pngBytes);
             if (!valid)
             {
-                UploadDebug("ERROR: Texture2D.LoadImage(PNG) ·µ»Ø false");
+                UploadDebug("ERROR: Texture2D.LoadImage(PNG) è¿”å› false");
                 Destroy(testTex);
-                ShowConfirm("ÉÏ´«Ê§°Ü:\nPNG ÎŞ·¨½âÎö", null);
+                ShowConfirm("ä¸Šä¼ å¤±è´¥:\nPNG æ— æ³•è§£æ", null);
                 yield break;
             }
-            UploadDebug($"PNG ÑéÖ¤³É¹¦: {testTex.width}x{testTex.height}");
+            UploadDebug($"PNG éªŒè¯æˆåŠŸ: {testTex.width}x{testTex.height}");
         }
         catch (Exception e)
         {
-            UploadDebug($"ERROR: PNG ÑéÖ¤Òì³£: {e}");
+            UploadDebug($"ERROR: PNG éªŒè¯å¼‚å¸¸: {e}");
             if (testTex != null) Destroy(testTex);
-            ShowConfirm("ÉÏ´«Ê§°Ü:\nPNG ÑéÖ¤Òì³£", null);
+            ShowConfirm("ä¸Šä¼ å¤±è´¥:\nPNG éªŒè¯å¼‚å¸¸", null);
             yield break;
         }
         if (testTex != null) Destroy(testTex);
 
-        // ---------- 2. Ğ´Èë Uploads Ä¿Â¼ ----------
+        // ---------- 2. å†™å…¥ Uploads ç›®å½• ----------
         string uploadDir = Path.Combine(Application.persistentDataPath, "Uploads");
-        UploadDebug($"Uploads Ä¿Â¼: {uploadDir}");
+        UploadDebug($"Uploads ç›®å½•: {uploadDir}");
 
         try
         {
             if (!Directory.Exists(uploadDir))
             {
                 Directory.CreateDirectory(uploadDir);
-                UploadDebug("´´½¨ Uploads Ä¿Â¼³É¹¦");
+                UploadDebug("åˆ›å»º Uploads ç›®å½•æˆåŠŸ");
             }
         }
         catch (Exception e)
         {
-            UploadDebug($"ERROR: ´´½¨ Uploads Ä¿Â¼Ê§°Ü: {e}");
-            ShowConfirm("ÉÏ´«Ê§°Ü:\nÎŞ·¨´´½¨ Uploads Ä¿Â¼", null);
+            UploadDebug($"ERROR: åˆ›å»º Uploads ç›®å½•å¤±è´¥: {e}");
+            ShowConfirm("ä¸Šä¼ å¤±è´¥:\næ— æ³•åˆ›å»º Uploads ç›®å½•", null);
             yield break;
         }
 
-        // ÓÃÊ±¼ä´Á×÷ÎªÎÄ¼şÃû£¨¾«È·µ½ºÁÃë£¬±£Ö¤²»ÖØÃû£©
+        // ç”¨æ—¶é—´æˆ³ä½œä¸ºæ–‡ä»¶åï¼Œç²¾ç¡®åˆ°æ¯«ç§’ï¼Œä¿è¯ä¸é‡å
         string fileName = "upload_" + DateTime.Now.ToString("yyyyMMdd_HHmmss_fff") + ".png";
         string destPath = Path.Combine(uploadDir, fileName);
-        UploadDebug($"×¼±¸±£´æ: {destPath}");
+        UploadDebug($"å‡†å¤‡ä¿å­˜: {destPath}");
 
         try
         {
             File.WriteAllBytes(destPath, pngBytes);
             bool exists = File.Exists(destPath);
             long length = exists ? new FileInfo(destPath).Length : 0;
-            UploadDebug($"ÎÄ¼ş±£´æÍê³É: exists={exists}, length={length}");
+            UploadDebug($"æ–‡ä»¶ä¿å­˜å®Œæˆ: exists={exists}, length={length}");
 
             if (!exists || length <= 0)
             {
-                UploadDebug("ERROR: ±£´æºóÎÄ¼ş²»´æÔÚ»ò³¤¶ÈÎª 0");
-                ShowConfirm("ÉÏ´«Ê§°Ü:\nÎÄ¼ş±£´æÊ§°Ü", null);
+                UploadDebug("ERROR: ä¿å­˜åæ–‡ä»¶ä¸å­˜åœ¨æˆ–é•¿åº¦ä¸º 0");
+                ShowConfirm("ä¸Šä¼ å¤±è´¥:\næ–‡ä»¶ä¿å­˜å¤±è´¥", null);
                 yield break;
             }
         }
         catch (Exception e)
         {
-            UploadDebug($"ERROR: File.WriteAllBytes Ê§°Ü: {e}");
-            ShowConfirm($"ÉÏ´«Ê§°Ü:\nĞ´ÈëÎÄ¼şÊ§°Ü\n{e.Message}", null);
+            UploadDebug($"ERROR: File.WriteAllBytes å¤±è´¥: {e}");
+            ShowConfirm($"ä¸Šä¼ å¤±è´¥:\nå†™å…¥æ–‡ä»¶å¤±è´¥\n{e.Message}", null);
             yield break;
         }
 
-        // ---------- 3. Ğ´ÈëÊı¾İÁĞ±í£¨PlayerPrefs£© ----------
+        // ---------- 3. å†™å…¥æ•°æ®åˆ—è¡¨ï¼ˆPlayerPrefsï¼‰ ----------
         try
         {
             GameDataManager.AddUploadedImage(fileName);
             List<string> savedFiles = GameDataManager.GetUploadedImages();
-            UploadDebug($"PlayerPrefs Ğ´Èë³É¹¦£¬µ±Ç°ÉÏ´«ÁĞ±íÊıÁ¿: {savedFiles.Count}");
+            UploadDebug($"PlayerPrefs å†™å…¥æˆåŠŸï¼Œå½“å‰ä¸Šä¼ åˆ—è¡¨æ•°é‡: {savedFiles.Count}");
 
-            // ÑéÖ¤Ğ´ÈëÊÇ·ñÉúĞ§
+            // éªŒè¯å†™å…¥æ˜¯å¦ç”Ÿæ•ˆï¼ˆé˜²æ­¢ PlayerPrefs æ„å¤–å¤±è´¥ï¼‰
             bool recorded = savedFiles.Contains(fileName);
-            UploadDebug($"¼ì²éĞÂÎÄ¼şÊÇ·ñÔÚÁĞ±íÖĞ: {recorded} ({fileName})");
+            UploadDebug($"æ£€æŸ¥æ–°æ–‡ä»¶æ˜¯å¦åœ¨åˆ—è¡¨ä¸­: {recorded} ({fileName})");
 
             if (!recorded)
             {
-                UploadDebug("ERROR: ÎÄ¼şÒÑ±£´æ£¬µ«Î´³É¹¦Ğ´ÈëÉÏ´«ÁĞ±í");
-                ShowConfirm("ÉÏ´«Ê§°Ü:\nÉÏ´«¼ÇÂ¼±£´æÊ§°Ü", null);
+                UploadDebug("ERROR: æ–‡ä»¶å·²ä¿å­˜ï¼Œä½†æœªæˆåŠŸå†™å…¥ä¸Šä¼ åˆ—è¡¨");
+                ShowConfirm("ä¸Šä¼ å¤±è´¥:\nä¸Šä¼ è®°å½•ä¿å­˜å¤±è´¥", null);
                 yield break;
             }
         }
         catch (Exception e)
         {
-            UploadDebug($"ERROR: GameDataManager.AddUploadedImage Òì³£: {e}");
-            ShowConfirm("ÉÏ´«Ê§°Ü:\nÉÏ´«¼ÇÂ¼±£´æÒì³£", null);
+            UploadDebug($"ERROR: GameDataManager.AddUploadedImage å¼‚å¸¸: {e}");
+            ShowConfirm("ä¸Šä¼ å¤±è´¥:\nä¸Šä¼ è®°å½•ä¿å­˜å¼‚å¸¸", null);
             yield break;
         }
 
-        // ---------- 4. Ë¢ĞÂ·ÖÀà°´Å¥£¨Èç¹ûµ±Ç°¿É¼û£© ----------
+        // ---------- 4. åˆ·æ–°åˆ†ç±»æŒ‰é’®ï¼ˆå¦‚æœå½“å‰å¯è§ï¼‰ ----------
         if (categoryScrollView != null && categoryScrollView.activeSelf)
         {
-            UploadDebug("µ±Ç°·ÖÀàÃæ°å¿É¼û£¬Ë¢ĞÂ·ÖÀà°´Å¥");
+            UploadDebug("å½“å‰åˆ†ç±»é¢æ¿å¯è§ï¼Œåˆ·æ–°åˆ†ç±»æŒ‰é’®");
             GenerateCategoryButtons();
         }
         else
         {
-            UploadDebug("·ÖÀàÃæ°åµ±Ç°²»¿É¼û£¬Ìø¹ı·ÖÀà°´Å¥Ë¢ĞÂ");
+            UploadDebug("åˆ†ç±»é¢æ¿å½“å‰ä¸å¯è§ï¼Œè·³è¿‡åˆ†ç±»æŒ‰é’®åˆ·æ–°");
         }
 
-        // ---------- 5. Ë¢ĞÂÉÏ´«¹ÜÀí UI ----------
-        UploadDebug("¿ªÊ¼Ë¢ĞÂÉÏ´«¹ÜÀí UI");
+        // ---------- 5. åˆ·æ–°ä¸Šä¼ ç®¡ç† UI ----------
+        UploadDebug("å¼€å§‹åˆ·æ–°ä¸Šä¼ ç®¡ç† UI");
         PopulateUploadManagePanel();
 
         yield return null;
 
-        UploadDebug("SaveUploadedPng() Íê³É");
+        UploadDebug("SaveUploadedPng() å®Œæˆ");
     }
 
     /// <summary>
-    /// Òì²½Ë¢ĞÂÉÏ´«¹ÜÀíÃæ°å¡£
-    /// ±éÀúÒÑÉÏ´«ÎÄ¼ş£¬ÎªÃ¿¸ö´´½¨ËõÂÔÍ¼°´Å¥¡£
+    /// å¼‚æ­¥åˆ·æ–°ä¸Šä¼ ç®¡ç†é¢æ¿ã€‚
+    /// éå†å·²ä¸Šä¼ æ–‡ä»¶åˆ—è¡¨ï¼Œä¸ºæ¯ä¸ªæ–‡ä»¶åˆ›å»ºä¸€ä¸ªç¼©ç•¥å›¾æŒ‰é’®ã€‚
+    /// 
+    /// ã€æŒ‰é’®åŠŸèƒ½ã€‘
+    /// ç‚¹å‡»åˆ é™¤å¯¹åº”çš„ä¸Šä¼ å›¾ç‰‡ï¼ˆåŒæ—¶åˆ æ–‡ä»¶å’Œ PlayerPrefs è®°å½•ï¼‰ã€‚
     /// </summary>
     private IEnumerator PopulateUploadManagePanelAsync()
     {
-        UploadDebug("========== ¿ªÊ¼Ë¢ĞÂÉÏ´« UI ==========");
+        UploadDebug("========== å¼€å§‹åˆ·æ–°ä¸Šä¼  UI ==========");
 
-        // °ó¶¨¼ì²é
+        // å¼•ç”¨æ£€æŸ¥
         if (uploadScrollContent == null) { UploadDebug("ERROR: uploadScrollContent == null"); uploadPanelCoroutine = null; yield break; }
         if (imageButtonPrefab == null) { UploadDebug("ERROR: imageButtonPrefab == null"); uploadPanelCoroutine = null; yield break; }
 
-        // ÊÍ·Å¾É Sprite
-        UploadDebug($"ÇåÀí dynamicSprites£¬µ±Ç°ÊıÁ¿={dynamicSprites.Count}");
+        // é‡Šæ”¾æ—§ Spriteï¼ˆé¿å…æ˜¾å­˜æ³„æ¼ï¼‰
+        UploadDebug($"æ¸…ç† dynamicSpritesï¼Œå½“å‰æ•°é‡={dynamicSprites.Count}");
         ReleaseDynamicSprites();
 
-        // ÇåÀí¾É°´Å¥
+        // æ¸…ç†æ—§æŒ‰é’®
         int oldChildCount = uploadScrollContent.childCount;
-        UploadDebug($"ÇåÀí¾ÉÉÏ´«°´Å¥£¬childCount={oldChildCount}");
+        UploadDebug($"æ¸…ç†æ—§ä¸Šä¼ æŒ‰é’®ï¼ŒchildCount={oldChildCount}");
         foreach (Transform child in uploadScrollContent)
             Destroy(child.gameObject);
 
-        yield return null;   // µÈÒ»Ö¡£¬ÈÃ Destroy ÉúĞ§
+        yield return null;   // ç­‰ä¸€å¸§ï¼Œè®© Destroy ç”Ÿæ•ˆ
 
-        // Íø¸ñ²¼¾Ö
+        // è®¾ç½®ç½‘æ ¼å¸ƒå±€
         GridLayoutGroup grid = uploadScrollContent.GetComponent<GridLayoutGroup>();
         if (grid == null) grid = uploadScrollContent.gameObject.AddComponent<GridLayoutGroup>();
         grid.cellSize = new Vector2(200, 200);
@@ -1359,56 +1489,57 @@ public class MainMenuManager : MonoBehaviour
         grid.constraintCount = 3;
         grid.childAlignment = TextAnchor.UpperCenter;
 
-        // ×ÔÊÊÓ¦¸ß¶È
+        // è‡ªé€‚åº”é«˜åº¦
         ContentSizeFitter fitter = uploadScrollContent.GetComponent<ContentSizeFitter>();
         if (fitter == null) fitter = uploadScrollContent.gameObject.AddComponent<ContentSizeFitter>();
         fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
         fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
 
-        // ¶ÁÈ¡ÎÄ¼şÁĞ±í
+        // è¯»å–å·²ä¸Šä¼ æ–‡ä»¶åˆ—è¡¨
         List<string> files = GameDataManager.GetUploadedImages();
-        UploadDebug($"´Ó GameDataManager ¶ÁÈ¡ÉÏ´«ÁĞ±í: count={files.Count}");
+        UploadDebug($"ä» GameDataManager è¯»å–ä¸Šä¼ åˆ—è¡¨: count={files.Count}");
 
         int createdCount = 0;
 
         foreach (string file in files)
         {
-            if (string.IsNullOrEmpty(file)) { UploadDebug("WARNING: ¿ÕÎÄ¼şÃû£¬Ìø¹ı"); continue; }
+            if (string.IsNullOrEmpty(file)) { UploadDebug("WARNING: ç©ºæ–‡ä»¶åï¼Œè·³è¿‡"); continue; }
 
             string path = GameDataManager.GetUploadedImagePath(file);
             bool exists = File.Exists(path);
-            UploadDebug($"¼ì²é[{createdCount}] file={file}, exists={exists}");
+            UploadDebug($"æ£€æŸ¥[{createdCount}] file={file}, exists={exists}");
 
-            if (!exists) { UploadDebug($"WARNING: ÎÄ¼ş²»´æÔÚ£¬Ìø¹ı: {path}"); continue; }
+            if (!exists) { UploadDebug($"WARNING: æ–‡ä»¶ä¸å­˜åœ¨ï¼Œè·³è¿‡: {path}"); continue; }
 
+            // æ‰“å°æ–‡ä»¶å¤§å°ç”¨äºè¯Šæ–­
             long length = 0;
             try { length = new FileInfo(path).Length; } catch { }
-            UploadDebug($"ÎÄ¼ş´óĞ¡: {length} bytes");
+            UploadDebug($"æ–‡ä»¶å¤§å°: {length} bytes");
 
-            // Òì²½¼ÓÔØ Sprite
+            // å¼‚æ­¥åŠ è½½ Sprite
             Sprite sprite = null;
             yield return ImageLoader.LoadSpriteFromFileAsync(path, (s) => sprite = s);
 
-            if (sprite == null) { UploadDebug($"ERROR: ImageLoader ´´½¨ Sprite Ê§°Ü: {file}"); continue; }
+            if (sprite == null) { UploadDebug($"ERROR: ImageLoader åˆ›å»º Sprite å¤±è´¥: {file}"); continue; }
 
-            UploadDebug($"Sprite ´´½¨³É¹¦: {sprite.name}, {sprite.texture.width}x{sprite.texture.height}");
+            UploadDebug($"Sprite åˆ›å»ºæˆåŠŸ: {sprite.name}, {sprite.texture.width}x{sprite.texture.height}");
             dynamicSprites.Add(sprite);
 
-            // ´´½¨°´Å¥
+            // åˆ›å»ºæŒ‰é’®ï¼ˆç”¨ try-catch é˜²æ­¢é¢„åˆ¶ä½“å¼‚å¸¸ï¼‰
             GameObject btnObj = null;
             try { btnObj = Instantiate(imageButtonPrefab, uploadScrollContent); }
-            catch (Exception e) { UploadDebug($"ERROR: Instantiate Òì³£: {e}"); continue; }
+            catch (Exception e) { UploadDebug($"ERROR: Instantiate å¼‚å¸¸: {e}"); continue; }
 
-            if (btnObj == null) { UploadDebug("ERROR: Instantiate ·µ»Ø null"); continue; }
+            if (btnObj == null) { UploadDebug("ERROR: Instantiate è¿”å› null"); continue; }
 
             Button btn = btnObj.GetComponent<Button>();
-            if (btn == null) UploadDebug($"WARNING: °´Å¥ Prefab ÉÏÃ»ÓĞ Button: {btnObj.name}");
+            if (btn == null) UploadDebug($"WARNING: æŒ‰é’® Prefab ä¸Šæ²¡æœ‰ Button: {btnObj.name}");
 
-            // ÕÒ Image ×é¼ş£¨ÓÅÏÈÕÒÃûÎª Image µÄ×Ó½Úµã£©
+            // æ‰¾ Image ç»„ä»¶ï¼ˆä¼˜å…ˆæ‰¾åä¸º Image çš„å­èŠ‚ç‚¹ï¼‰
             Image img = btnObj.transform.Find("Image")?.GetComponent<Image>();
             if (img == null) img = btnObj.GetComponentInChildren<Image>(true);
 
-            UploadDebug($"°´Å¥´´½¨³É¹¦: {btnObj.name}, Image={img != null}");
+            UploadDebug($"æŒ‰é’®åˆ›å»ºæˆåŠŸ: {btnObj.name}, Image={img != null}");
 
             if (img != null)
             {
@@ -1417,155 +1548,161 @@ public class MainMenuManager : MonoBehaviour
                 img.color = Color.white;
             }
 
-            // °ó¶¨É¾³ıÊÂ¼ş
+            // ç»‘å®šåˆ é™¤äº‹ä»¶
             if (btn != null)
             {
                 string fileNameForButton = file;
                 btn.onClick.RemoveAllListeners();
                 btn.onClick.AddListener(() =>
                 {
-                    UploadDebug($"µã»÷É¾³ıÉÏ´«Í¼Æ¬: {fileNameForButton}");
+                    UploadDebug($"ç‚¹å‡»åˆ é™¤ä¸Šä¼ å›¾ç‰‡: {fileNameForButton}");
                     GameDataManager.RemoveUploadedImage(fileNameForButton);
-                    PopulateUploadManagePanel();
+                    PopulateUploadManagePanel();   // åˆ·æ–°
                 });
             }
 
-            // ÉèÖÃ"É¾³ı"ÎÄ×Ö
+            // æ˜¾ç¤º"åˆ é™¤"æ–‡å­—
             Text label = btnObj.GetComponentInChildren<Text>(true);
-            if (label != null) label.text = "É¾³ı";
+            if (label != null) label.text = "åˆ é™¤";
 
             createdCount++;
-            UploadDebug($"ÉÏ´«Í¼Æ¬ UI ´´½¨Íê³É: {createdCount}/{files.Count}");
+            UploadDebug($"ä¸Šä¼ å›¾ç‰‡ UI åˆ›å»ºå®Œæˆ: {createdCount}/{files.Count}");
 
-            yield return null;   // Ã¿ÕÅÈÃ³öÒ»Ö¡
+            yield return null;   // æ¯å¼ è®©å‡ºä¸€å¸§
         }
 
+        // å¼ºåˆ¶é‡å»ºå¸ƒå±€
         Canvas.ForceUpdateCanvases();
         LayoutRebuilder.ForceRebuildLayoutImmediate(uploadScrollContent);
 
-        UploadDebug($"²¼¾ÖË¢ĞÂÍê³É: childCount={uploadScrollContent.childCount}, created={createdCount}");
+        UploadDebug($"å¸ƒå±€åˆ·æ–°å®Œæˆ: childCount={uploadScrollContent.childCount}, created={createdCount}");
 
         uploadPanelCoroutine = null;
-        UploadDebug("========== ÉÏ´« UI Ë¢ĞÂÍê³É ==========");
+        UploadDebug("========== ä¸Šä¼  UI åˆ·æ–°å®Œæˆ ==========");
     }
 
     /// <summary>
-    /// µã»÷"Ìí¼ÓÍ¼Æ¬"°´Å¥¡£
+    /// ç‚¹å‡»"æ·»åŠ å›¾ç‰‡"æŒ‰é’®ã€‚
     /// 
-    /// ¡¾±à¼­Æ÷¡¿ÓÃ EditorUtility.OpenFilePanel ´ò¿ªÎÄ¼şÑ¡Ôñ¿ò
-    /// ¡¾Õæ»ú¡¿ÓÃ NativeGallery.GetImageFromGallery ´ò¿ªÏà²á
+    /// ã€ç¼–è¾‘å™¨ã€‘ç”¨ EditorUtility.OpenFilePanel æ‰“å¼€æ–‡ä»¶é€‰æ‹©æ¡†
+    /// ã€çœŸæœºã€‘ç”¨ NativeGallery.GetImageFromGallery æ‰“å¼€ç›¸å†Œ
+    /// 
+    /// ä¸¤ç§æ–¹å¼éƒ½ä¼šæ‹¿åˆ°å›¾ç‰‡è·¯å¾„ï¼Œç„¶åäº¤ç»™ SaveUploadedPng ä¿å­˜ã€‚
     /// </summary>
     private void OnUploadButtonClicked()
     {
         ClearUploadDebug();
-        UploadDebug("========== µã»÷ÉÏ´«Í¼Æ¬ ==========");
-        UploadDebug($"Æ½Ì¨: {Application.platform}");
+        UploadDebug("========== ç‚¹å‡»ä¸Šä¼ å›¾ç‰‡ ==========");
+        UploadDebug($"å¹³å°: {Application.platform}");
         UploadDebug($"persistentDataPath: {Application.persistentDataPath}");
 
 #if UNITY_EDITOR
-        // ±à¼­Æ÷£ºÎÄ¼şÑ¡ÔñÆ÷
-        UploadDebug("ÔËĞĞÔÚ Unity Editor£¬´ò¿ªÎÄ¼şÑ¡ÔñÆ÷");
-        string path = UnityEditor.EditorUtility.OpenFilePanel("Ñ¡ÔñÍ¼Æ¬", "", "png,jpg,jpeg");
-        UploadDebug($"Editor Ñ¡Ôñ½á¹û: {path}");
+        // ---------- ç¼–è¾‘å™¨ï¼šæ‰“å¼€æ–‡ä»¶é€‰æ‹©æ¡† ----------
+        UploadDebug("è¿è¡Œåœ¨ Unity Editorï¼Œæ‰“å¼€æ–‡ä»¶é€‰æ‹©å™¨");
+        string path = UnityEditor.EditorUtility.OpenFilePanel("é€‰æ‹©å›¾ç‰‡", "", "png,jpg,jpeg");
+        UploadDebug($"Editor é€‰æ‹©ç»“æœ: {path}");
 
         if (!string.IsNullOrEmpty(path))
             StartCoroutine(ProcessUploadedImageAsync(path));
         else
-            UploadDebug("ÓÃ»§È¡ÏûÑ¡Ôñ");
+            UploadDebug("ç”¨æˆ·å–æ¶ˆé€‰æ‹©");
 #else
-        // Õæ»ú£ºµ÷ÓÃ NativeGallery ´ò¿ªÏà²á
-        UploadDebug("µ÷ÓÃ NativeGallery.GetImageFromGallery()");
+        // ---------- çœŸæœºï¼šæ‰“å¼€ç³»ç»Ÿç›¸å†Œ ----------
+        UploadDebug("è°ƒç”¨ NativeGallery.GetImageFromGallery()");
 
         NativeGallery.GetImageFromGallery((path) =>
         {
-            UploadDebug($"NativeGallery »Øµ÷ path = {path}");
+            UploadDebug($"NativeGallery å›è°ƒ path = {path}");
 
             if (string.IsNullOrEmpty(path))
             {
-                UploadDebug("ÓÃ»§È¡ÏûÑ¡Ôñ£¬path Îª¿Õ");
+                UploadDebug("ç”¨æˆ·å–æ¶ˆé€‰æ‹©ï¼Œpath ä¸ºç©º");
                 return;
             }
 
             UploadDebug($"path.StartsWith(content://) = {path.StartsWith("content://")}");
 
-            // ÓÃ NativeGallery Ö±½Ó¼ÓÔØÎª Texture2D£¨Ëü»á´¦Àí¸÷ÖÖ¸ñÊ½£©
+            // ç”¨ NativeGallery ç›´æ¥åŠ è½½ä¸º Texture2Dï¼ˆå®ƒä¼šå¤„ç†å„ç§å›¾ç‰‡æ ¼å¼ï¼‰
             Texture2D texture = null;
             try
             {
-                UploadDebug("¿ªÊ¼ NativeGallery.LoadImageAtPath(path, 2048, false)");
+                UploadDebug("å¼€å§‹ NativeGallery.LoadImageAtPath(path, 2048, false)");
                 texture = NativeGallery.LoadImageAtPath(path, 2048, false);
             }
             catch (Exception e)
             {
-                UploadDebug($"ERROR: LoadImageAtPath Òì³£: {e}");
-                ShowConfirm("Í¼Æ¬ÎŞ·¨Ê¶±ğ", null);
+                UploadDebug($"ERROR: LoadImageAtPath å¼‚å¸¸: {e}");
+                ShowConfirm("å›¾ç‰‡æ— æ³•è¯†åˆ«", null);
                 return;
             }
 
             if (texture == null)
             {
-                UploadDebug("ERROR: LoadImageAtPath ·µ»Ø null");
-                ShowConfirm("Í¼Æ¬ÎŞ·¨Ê¶±ğ£¬Çë»»Ò»ÕÅ", null);
+                UploadDebug("ERROR: LoadImageAtPath è¿”å› null");
+                ShowConfirm("å›¾ç‰‡æ— æ³•è¯†åˆ«ï¼Œè¯·æ¢ä¸€å¼ ", null);
                 return;
             }
 
-            UploadDebug($"NativeGallery Í¼Æ¬¼ÓÔØ³É¹¦: {texture.width}x{texture.height}");
+            UploadDebug($"NativeGallery å›¾ç‰‡åŠ è½½æˆåŠŸ: {texture.width}x{texture.height}");
 
-            // ±àÂëÎª PNG ×Ö½Ú
+            // ç¼–ç ä¸º PNG å­—èŠ‚
             byte[] pngBytes = null;
             try
             {
                 pngBytes = texture.EncodeToPNG();
-                UploadDebug($"EncodeToPNG Íê³É: {pngBytes?.Length ?? 0} bytes");
+                UploadDebug($"EncodeToPNG å®Œæˆ: {pngBytes?.Length ?? 0} bytes");
             }
             catch (Exception e)
             {
-                UploadDebug($"ERROR: EncodeToPNG Òì³£: {e}");
+                UploadDebug($"ERROR: EncodeToPNG å¼‚å¸¸: {e}");
             }
             finally
             {
-                Destroy(texture);   // Á¢¼´Ïú»ÙÁÙÊ±ÎÆÀí
+                Destroy(texture);   // ç«‹å³é”€æ¯ä¸´æ—¶çº¹ç†ï¼Œé¿å…æ˜¾å­˜å ç”¨
             }
 
             if (pngBytes == null || pngBytes.Length < 100)
             {
-                UploadDebug("ERROR: PNG ±àÂë½á¹ûÎŞĞ§");
-                ShowConfirm("Í¼Æ¬±àÂëÊ§°Ü£¬Çë»»Ò»ÕÅ", null);
+                UploadDebug("ERROR: PNG ç¼–ç ç»“æœæ— æ•ˆ");
+                ShowConfirm("å›¾ç‰‡ç¼–ç å¤±è´¥ï¼Œè¯·æ¢ä¸€å¼ ", null);
                 return;
             }
 
-            UploadDebug("¿ªÊ¼ StartCoroutine(SaveUploadedPng)");
+            UploadDebug("å¼€å§‹ StartCoroutine(SaveUploadedPng)");
             StartCoroutine(SaveUploadedPng(pngBytes));
-        }, "Ñ¡ÔñÍ¼Æ¬", "image/*");
+        }, "é€‰æ‹©å›¾ç‰‡", "image/*");
 #endif
     }
 
     /// <summary>
-    /// ´ÓÎÄ¼şÂ·¾¶Òì²½½âÂëÍ¼Æ¬£¨±à¼­Æ÷ / content:// URI£©¡£
-    /// ÓÃºóÌ¨Ïß³Ì×ö Android Ô­Éú½âÂë¡£
+    /// ä»æ–‡ä»¶è·¯å¾„å¼‚æ­¥è§£ç å›¾ç‰‡ï¼ˆç¼–è¾‘å™¨ / content:// URIï¼‰ã€‚
+    /// ç”¨åå°çº¿ç¨‹åš Android åŸç”Ÿè§£ç ï¼ˆå› ä¸ºè§£ç å¯èƒ½è€—æ—¶ï¼‰ã€‚
     /// </summary>
     private IEnumerator ProcessUploadedImageAsync(string sourcePath)
     {
         UploadDebug("========== ProcessUploadedImageAsync ==========");
 
-        if (string.IsNullOrEmpty(sourcePath)) { UploadDebug("ERROR: sourcePath Îª¿Õ"); ShowConfirm("ÉÏ´«Ê§°Ü:\nsourcePath Îª¿Õ", null); yield break; }
+        // å‚æ•°æ£€æŸ¥
+        if (string.IsNullOrEmpty(sourcePath)) { UploadDebug("ERROR: sourcePath ä¸ºç©º"); ShowConfirm("ä¸Šä¼ å¤±è´¥:\nsourcePath ä¸ºç©º", null); yield break; }
 
+        // åˆ¤æ–­æ˜¯ URI è¿˜æ˜¯æ™®é€šæ–‡ä»¶è·¯å¾„
         bool isContentUri = sourcePath.StartsWith("content://");
         UploadDebug($"sourcePath = {sourcePath}");
         UploadDebug($"isContentUri = {isContentUri}");
 
         if (!isContentUri && !File.Exists(sourcePath))
         {
-            UploadDebug("ERROR: source ÎÄ¼ş²»´æÔÚ");
-            ShowConfirm($"ÉÏ´«Ê§°Ü:\nÎÄ¼ş²»´æÔÚ\n{sourcePath}", null);
+            UploadDebug("ERROR: source æ–‡ä»¶ä¸å­˜åœ¨");
+            ShowConfirm($"ä¸Šä¼ å¤±è´¥:\næ–‡ä»¶ä¸å­˜åœ¨\n{sourcePath}", null);
             yield break;
         }
 
-        // ºóÌ¨Ïß³Ì½âÂë
+        // ---------- åå°çº¿ç¨‹è§£ç  ----------
         byte[] pngBytes = null;
         bool decodingDone = false;
         string decodeError = null;
 
+        // ç”¨ Task.Run æŠŠè§£ç æ”¾åˆ°çº¿ç¨‹æ± ï¼Œé¿å…é˜»å¡ä¸»çº¿ç¨‹
         System.Threading.Tasks.Task.Run(() =>
         {
             try
@@ -1578,83 +1715,94 @@ public class MainMenuManager : MonoBehaviour
             finally { decodingDone = true; }
         });
 
+        // ä¸»çº¿ç¨‹è½®è¯¢ç­‰å¾…åå°å®Œæˆ
         while (!decodingDone) yield return null;
 
-        if (!string.IsNullOrEmpty(decodeError)) UploadDebug($"ERROR: ºóÌ¨½âÂëÒì³£: {decodeError}");
+        if (!string.IsNullOrEmpty(decodeError)) UploadDebug($"ERROR: åå°è§£ç å¼‚å¸¸: {decodeError}");
 
         if (pngBytes == null || pngBytes.Length < 100)
         {
             string reason = AndroidImageDecoder.LastError;
-            if (string.IsNullOrEmpty(reason)) reason = "½âÂë·µ»Ø¿Õ";
-            UploadDebug($"ERROR: ½âÂëÊ§°Ü: {reason}");
-            ShowConfirm($"ÉÏ´«Ê§°Ü:\n{reason}", null);
+            if (string.IsNullOrEmpty(reason)) reason = "è§£ç è¿”å›ç©º";
+            UploadDebug($"ERROR: è§£ç å¤±è´¥: {reason}");
+            ShowConfirm($"ä¸Šä¼ å¤±è´¥:\n{reason}", null);
             yield break;
         }
 
-        UploadDebug($"ºóÌ¨½âÂë³É¹¦: {pngBytes.Length} bytes");
+        UploadDebug($"åå°è§£ç æˆåŠŸ: {pngBytes.Length} bytes");
 
-        // ¸´ÓÃ±£´æÁ÷³Ì
+        // å¤ç”¨ä¿å­˜æµç¨‹
         yield return SaveUploadedPng(pngBytes);
     }
 
     #endregion
 
-    #region ¾ÖÓòÍø·ÖÏí
+    #region å±€åŸŸç½‘åˆ†äº«
 
+    /// <summary>
+    /// ç‚¹å‡»ã€åˆ†äº«ã€‘æŒ‰é’®ï¼šå¯åŠ¨æœåŠ¡ç«¯ï¼Œç­‰å¾…å®¢æˆ·ç«¯è¿æ¥ã€‚
+    /// </summary>
     private void OnShareButtonClicked()
     {
-        UploadDebug("========== µã»÷¡¾·ÖÏí¡¿ ==========");
-        LANShareManager.Instance.StartSharing();     // Æô¶¯ TCP ·şÎñÆ÷ + UDP ¹ã²¥
-        shareStatusText.text = "µÈ´ı¿Í»§¶ËÁ¬½Ó...";
-        StartCoroutine(WaitForClientConnection());   // µÈ´ı¿Í»§¶ËÁ¬½Ó
+        UploadDebug("========== ç‚¹å‡»ã€åˆ†äº«ã€‘ ==========");
+        LANShareManager.Instance.StartSharing();     // å¯åŠ¨ TCP æœåŠ¡å™¨ + UDP å¹¿æ’­
+        shareStatusText.text = "ç­‰å¾…å®¢æˆ·ç«¯è¿æ¥...";
+        StartCoroutine(WaitForClientConnection());   // å¼€å§‹è½®è¯¢ç­‰å¾…è¿æ¥
     }
 
     /// <summary>
-    /// ÂÖÑ¯µÈ´ı¿Í»§¶ËÁ¬½Ó£¬Á¬½Óºó×Ô¶¯´ò¿ª·ÖÏíÑ¡ÔñÃæ°å¡£
+    /// è½®è¯¢ç­‰å¾…å®¢æˆ·ç«¯è¿æ¥ï¼Œä¸€æ—¦è¿æ¥å°±æ‰“å¼€åˆ†äº«é€‰æ‹©é¢æ¿ã€‚
     /// </summary>
     private IEnumerator WaitForClientConnection()
     {
-        UploadDebug("µÈ´ı¿Í»§¶ËÁ¬½Ó...");
+        UploadDebug("ç­‰å¾…å®¢æˆ·ç«¯è¿æ¥...");
         while (!LANShareManager.Instance.ClientConnected)
             yield return null;
 
-        UploadDebug("¿Í»§¶ËÒÑÁ¬½Ó£¬´ò¿ª·ÖÏíÑ¡ÔñÃæ°å");
-        shareStatusText.text = "Á¬½Ó³É¹¦";
+        UploadDebug("å®¢æˆ·ç«¯å·²è¿æ¥ï¼Œæ‰“å¼€åˆ†äº«é€‰æ‹©é¢æ¿");
+        shareStatusText.text = "è¿æ¥æˆåŠŸ";
         OpenShareSelectPanel();
     }
 
+    /// <summary>ç‚¹å‡»ã€æ¥æ”¶ã€‘æŒ‰é’®ï¼šæ‰“å¼€è®¾å¤‡åˆ—è¡¨é¢æ¿ï¼Œå¼€å§‹æœç´¢è®¾å¤‡ã€‚</summary>
     private void OnReceiveButtonClicked()
     {
-        UploadDebug("========== µã»÷¡¾½ÓÊÕ¡¿ ==========");
+        UploadDebug("========== ç‚¹å‡»ã€æ¥æ”¶ã€‘ ==========");
         ShowPanel(deviceListPanel);
-        StartDiscovery();   // ¿ªÊ¼ËÑË÷Éè±¸
+        StartDiscovery();
     }
 
+    /// <summary>æ‰“å¼€åˆ†äº«é€‰æ‹©é¢æ¿ï¼ˆæ¸…ç©ºä¸Šæ¬¡é€‰æ‹© + å¡«å……å†…å®¹ï¼‰ã€‚</summary>
     private void OpenShareSelectPanel()
     {
-        shareSelectedFiles.Clear();   // Çå¿ÕÉÏ´ÎÑ¡Ôñ
+        shareSelectedFiles.Clear();   // æ¸…ç©ºä¸Šæ¬¡é€‰æ‹©
         ShowPanel(shareSelectPanel);
         PopulateShareSelectPanel();
     }
 
-    /// <summary>
-    /// Òì²½Ìî³ä·ÖÏíÑ¡ÔñÃæ°å¡£
-    /// </summary>
+    /// <summary>å¼‚æ­¥å¡«å……åˆ†äº«é€‰æ‹©é¢æ¿ã€‚</summary>
     private void PopulateShareSelectPanel()
     {
         StartCoroutine(PopulateShareSelectPanelAsync());
     }
 
+    /// <summary>
+    /// å®é™…å¡«å……åˆ†äº«é€‰æ‹©é¢æ¿çš„åç¨‹ã€‚
+    /// éå†æœ¬åœ°æ‰€æœ‰ä¸Šä¼ å›¾ç‰‡ï¼Œä¸ºæ¯ä¸ªåˆ›å»ºå¯ç‚¹å‡»çš„ç¼©ç•¥å›¾ã€‚
+    /// ç‚¹å‡»åˆ‡æ¢"é€‰ä¸­"çŠ¶æ€ï¼ˆç»¿=å·²é€‰ï¼Œç™½=æœªé€‰ï¼‰ã€‚
+    /// </summary>
     private IEnumerator PopulateShareSelectPanelAsync()
     {
-        if (isSharePanelLoading) { Debug.Log("·ÖÏíÃæ°åÕıÔÚ¼ÓÔØÖĞ"); yield break; }
+        if (isSharePanelLoading) { Debug.Log("åˆ†äº«é¢æ¿æ­£åœ¨åŠ è½½ä¸­"); yield break; }
         isSharePanelLoading = true;
 
         ReleaseDynamicSprites();
 
+        // æ¸…ç†æ—§æŒ‰é’®
         foreach (Transform child in shareSelectContent)
             Destroy(child.gameObject);
 
+        // ç½‘æ ¼å¸ƒå±€ï¼šä¸€è¡Œä¸‰åˆ—ï¼Œæ¯ä¸ª 150Ã—150
         GridLayoutGroup grid = shareSelectContent.GetComponent<GridLayoutGroup>();
         if (grid == null) grid = shareSelectContent.gameObject.AddComponent<GridLayoutGroup>();
         grid.cellSize = new Vector2(150, 150);
@@ -1664,7 +1812,7 @@ public class MainMenuManager : MonoBehaviour
         grid.childAlignment = TextAnchor.UpperCenter;
 
         List<string> files = GameDataManager.GetUploadedImages();
-        UploadDebug($"[·ÖÏíÃæ°å] ¿É·ÖÏíÎÄ¼şÊı: {files.Count}");
+        UploadDebug($"[åˆ†äº«é¢æ¿] å¯åˆ†äº«æ–‡ä»¶æ•°: {files.Count}");
 
         foreach (string file in files)
         {
@@ -1682,25 +1830,27 @@ public class MainMenuManager : MonoBehaviour
             Image img = btnObj.transform.Find("Image")?.GetComponent<Image>();
             if (img != null) img.sprite = sprite;
 
-            // ÓÃ¾Ö²¿±äÁ¿²¶»ñ£¬·ÀÖ¹±Õ°üÏİÚå
+            // ç”¨å±€éƒ¨å˜é‡æ•è·ï¼Œé˜²æ­¢é—­åŒ…é™·é˜±
             string fileName = file;
             Image capturedImg = img;
             Button capturedBtn = btn;
 
-            // µã»÷ÇĞ»»"Ñ¡ÖĞ"×´Ì¬£¨ÂÌÉ« = ÒÑÑ¡£¬°×É« = Î´Ñ¡£©
+            // ç‚¹å‡»åˆ‡æ¢"é€‰ä¸­"çŠ¶æ€
             btn.onClick.AddListener(() =>
             {
                 if (shareSelectedFiles.Contains(fileName))
                 {
+                    // å·²é€‰ä¸­ â†’ å–æ¶ˆ
                     shareSelectedFiles.Remove(fileName);
                     if (capturedImg != null) capturedImg.color = Color.white;
                 }
                 else
                 {
+                    // æœªé€‰ä¸­ â†’ é€‰ä¸­ï¼ˆå˜ç»¿ï¼‰
                     shareSelectedFiles.Add(fileName);
                     if (capturedImg != null) capturedImg.color = Color.green;
                 }
-                UploadDebug($"[·ÖÏíÃæ°å] µ±Ç°ÒÑÑ¡ {shareSelectedFiles.Count} ÕÅ");
+                UploadDebug($"[åˆ†äº«é¢æ¿] å½“å‰å·²é€‰ {shareSelectedFiles.Count} å¼ ");
             });
 
             yield return null;
@@ -1710,49 +1860,54 @@ public class MainMenuManager : MonoBehaviour
     }
 
     /// <summary>
-    /// ·şÎñ¶Ëµã»÷¡¾·ÖÏí¡¿°´Å¥£º°ÑÑ¡ÖĞµÄÎÄ¼şÍÆ¸ø LANShareManager£¬
-    /// ²¢¿ªÊ¼·¢¾ÍĞ÷¹ã²¥£¨²»¹Ø±ÕÃæ°å£©¡£
+    /// æœåŠ¡ç«¯ç‚¹å‡»ã€åˆ†äº«ã€‘æŒ‰é’®ã€‚
+    /// æŠŠé€‰ä¸­çš„æ–‡ä»¶æ¨ç»™ LANShareManagerï¼Œå¹¶å¼€å§‹å‘å°±ç»ªå¹¿æ’­ï¼ˆä¸å…³é—­é¢æ¿ï¼‰ã€‚
+    /// 
+    /// ã€ä¸ºä»€ä¹ˆä¿æŒé¢æ¿æ‰“å¼€ï¼Ÿã€‘
+    /// ç”¨æˆ·å¯èƒ½æƒ³å†ä¿®æ”¹é€‰æ‹©åé‡æ–°åˆ†äº«ã€‚ä¿æŒæ‰“å¼€æ›´çµæ´»ã€‚
     /// </summary>
     private void StartSharingSelectedFiles()
     {
         if (shareSelectedFiles.Count == 0)
         {
-            ShowConfirm("ÇëÖÁÉÙÑ¡ÔñÒ»ÕÅÍ¼Æ¬", null);
+            ShowConfirm("è¯·è‡³å°‘é€‰æ‹©ä¸€å¼ å›¾ç‰‡", null);
             return;
         }
 
-        UploadDebug($"========== ·şÎñ¶Ëµã»÷¡¾·ÖÏí¡¿£¬¹² {shareSelectedFiles.Count} ÕÅ ==========");
+        UploadDebug($"========== æœåŠ¡ç«¯ç‚¹å‡»ã€åˆ†äº«ã€‘ï¼Œå…± {shareSelectedFiles.Count} å¼  ==========");
         foreach (var f in shareSelectedFiles)
             UploadDebug($"  - {f}");
 
-        // ¸æËß LANShareManager Òª·ÖÏíÄÄĞ©ÎÄ¼ş
+        // å‘Šè¯‰ LANShareManager è¦åˆ†äº«å“ªäº›æ–‡ä»¶
         LANShareManager.Instance.SetSharedFiles(shareSelectedFiles);
 
-        // ¿ªÊ¼ÖÜÆÚĞÔ·¢ËÍ¾ÍĞ÷¹ã²¥
+        // å¼€å§‹å‘¨æœŸæ€§å‘é€å°±ç»ªå¹¿æ’­ï¼ˆè®©å®¢æˆ·ç«¯çŸ¥é“å¯ä»¥æ¥ä¸‹è½½äº†ï¼‰
         LANShareManager.Instance.NotifyClientsReady();
 
-        shareStatusText.text = $"ÒÑ·ÖÏí {shareSelectedFiles.Count} ÕÅ£¬µÈ´ıÏÂÔØ...";
-        UploadDebug("ÒÑ·¢ËÍ¾ÍĞ÷¹ã²¥£¬·ÖÏíÃæ°å±£³Ö´ò¿ª£¨¿É¼ÌĞøĞŞ¸ÄÑ¡Ôñ£©");
+        shareStatusText.text = $"å·²åˆ†äº« {shareSelectedFiles.Count} å¼ ï¼Œç­‰å¾…ä¸‹è½½...";
+        UploadDebug("å·²å‘é€å°±ç»ªå¹¿æ’­ï¼Œåˆ†äº«é¢æ¿ä¿æŒæ‰“å¼€ï¼ˆå¯ç»§ç»­ä¿®æ”¹é€‰æ‹©ï¼‰");
 
-        // ×¢Òâ£º²»¹Ø±Õ shareSelectPanel£¬ÓÃ»§¿ÉÒÔ¼ÌĞøĞŞ¸ÄÑ¡ÔñÔÙµã·ÖÏí
+        // æ³¨æ„ï¼šä¸å…³é—­ shareSelectPanel
     }
 
     /// <summary>
-    /// ¿ªÊ¼ËÑË÷Éè±¸£¨½ÓÊÕ·½£©¡£
+    /// å¼€å§‹æœç´¢è®¾å¤‡ï¼ˆæ¥æ”¶æ–¹ï¼‰ã€‚
+    /// é€šè¿‡ LANShareManager ç›‘å¬ UDP å¹¿æ’­ï¼Œæ”¶åˆ°å¹¿æ’­åå›è°ƒå¤„ç†ã€‚
     /// </summary>
     private void StartDiscovery()
     {
-        if (deviceListContent == null) { UploadDebug("ERROR: deviceListContent Î´¸³Öµ£¡"); return; }
+        if (deviceListContent == null) { UploadDebug("ERROR: deviceListContent æœªèµ‹å€¼ï¼"); return; }
 
-        // ÇåÀí¾É°´Å¥
+        // æ¸…ç†æ—§çš„è®¾å¤‡æŒ‰é’®
         foreach (Transform child in deviceListContent)
             Destroy(child.gameObject);
         discoveredDevices.Clear();
 
-        // ´¹Ö±²¼¾Ö
+        // å‚ç›´å¸ƒå±€ï¼ˆæ¯ä¸ªè®¾å¤‡æŒ‰é’®å ä¸€è¡Œï¼‰
         VerticalLayoutGroup layout = deviceListContent.GetComponent<VerticalLayoutGroup>();
         if (layout == null)
         {
+            // å¦‚æœä¹‹å‰æœ‰å…¶ä»–å¸ƒå±€ç»„ä»¶ï¼Œå…ˆç§»é™¤ï¼ˆé¿å…å†²çªï¼‰
             LayoutGroup existing = deviceListContent.GetComponent<LayoutGroup>();
             if (existing != null) Destroy(existing);
             layout = deviceListContent.gameObject.AddComponent<VerticalLayoutGroup>();
@@ -1765,24 +1920,24 @@ public class MainMenuManager : MonoBehaviour
         layout.childForceExpandWidth = false;
         layout.childForceExpandHeight = false;
 
-        // Æô¶¯·¢ÏÖ£¨»Øµ÷ÔÚÖ÷Ïß³ÌÖ´ĞĞ£©
+        // å¯åŠ¨å‘ç°ï¼ˆå›è°ƒä¼šåœ¨ä¸»çº¿ç¨‹æ‰§è¡Œï¼Œå› ä¸º LANShareManager å†…éƒ¨åšäº†è°ƒåº¦ï¼‰
         LANShareManager.Instance.StartDiscovery((deviceName, ip, port, isReady) =>
         {
-            UploadDebug($"¡¾·¢ÏÖ»Øµ÷¡¿device={deviceName}, ip={ip}, port={port}, isReady={isReady}");
+            UploadDebug($"ã€å‘ç°å›è°ƒã€‘device={deviceName}, ip={ip}, port={port}, isReady={isReady}");
 
             if (isReady)
             {
-                // ÊÕµ½¾ÍĞ÷¹ã²¥£º¿ÉÄÜ·şÎñ¶Ë¸Õ·ÖÏíÍê
-                UploadDebug($"¡¾¾ÍĞ÷¹ã²¥¡¿ÊÕµ½£¬IP={ip}");
+                // æ”¶åˆ°å°±ç»ªå¹¿æ’­ï¼šå¯èƒ½æœåŠ¡ç«¯åˆšåˆ†äº«å®Œï¼Œå¤„äº"å¯ä¸‹è½½"çŠ¶æ€
+                UploadDebug($"ã€å°±ç»ªå¹¿æ’­ã€‘æ”¶åˆ°ï¼ŒIP={ip}");
                 if (LANShareManager.Instance.ConnectedToServer)
                 {
-                    // ÒÑ¾­Á¬½Ó¹ı ¡ú Ö±½ÓË¢ĞÂÁĞ±í
-                    UploadDebug("¡¾¾ÍĞ÷¹ã²¥¡¿ÒÑÁ¬½Ó×´Ì¬£¬ÇëÇóÍ¼Æ¬ÁĞ±í");
+                    // å·²ç»è¿æ¥è¿‡ â†’ ç›´æ¥åˆ·æ–°åˆ—è¡¨
+                    UploadDebug("ã€å°±ç»ªå¹¿æ’­ã€‘å·²è¿æ¥çŠ¶æ€ï¼Œè¯·æ±‚å›¾ç‰‡åˆ—è¡¨");
                     RequestRemoteImageList();
                 }
                 else
                 {
-                    // Î´Á¬½Ó ¡ú Ìí¼ÓÉè±¸°´Å¥£¨±ê¼ÇÎª¿ÉÏÂÔØ£©
+                    // æœªè¿æ¥ â†’ æ·»åŠ è®¾å¤‡æŒ‰é’®ï¼ˆæ ‡è®°ä¸º"å¯ä¸‹è½½"ï¼‰
                     string entry = $"{deviceName}|{ip}|{port}";
                     if (!discoveredDevices.Contains(entry))
                     {
@@ -1791,13 +1946,13 @@ public class MainMenuManager : MonoBehaviour
                     }
                     else
                     {
-                        UploadDebug($"¡¾¾ÍĞ÷¹ã²¥¡¿Éè±¸ÒÑÔÚÁĞ±íÖĞ: {entry}");
+                        UploadDebug($"ã€å°±ç»ªå¹¿æ’­ã€‘è®¾å¤‡å·²åœ¨åˆ—è¡¨ä¸­: {entry}");
                     }
                 }
             }
             else
             {
-                // ÆÕÍ¨¹ã²¥£ºÉè±¸´æÔÚµ«Î´¾ÍĞ÷
+                // æ™®é€šå¹¿æ’­ï¼šè®¾å¤‡å­˜åœ¨ä½†è¿˜æ²¡åˆ†äº«
                 string entry = $"{deviceName}|{ip}|{port}";
                 if (!discoveredDevices.Contains(entry))
                 {
@@ -1809,32 +1964,34 @@ public class MainMenuManager : MonoBehaviour
     }
 
     /// <summary>
-    /// ÇëÇóÔ¶³ÌÍ¼Æ¬ÁĞ±í£¨½ÓÊÕ·½£©¡£
-    /// ×¢Òâ£ºĞÂÁ÷³Ì²»ÏÔÊ¾ËõÂÔÍ¼ÁĞ±í£¬Ö»¸üĞÂ×´Ì¬ÎÄ×Ö¡£
+    /// è¯·æ±‚è¿œç¨‹å›¾ç‰‡åˆ—è¡¨ï¼ˆæ¥æ”¶æ–¹ï¼‰ã€‚
+    /// æ–°æµç¨‹ä¸æ˜¾ç¤ºç¼©ç•¥å›¾åˆ—è¡¨ï¼Œåªæ›´æ–°çŠ¶æ€æ–‡å­—ã€‚
     /// </summary>
     private void RequestRemoteImageList()
     {
-        UploadDebug("¿ªÊ¼ÇëÇóÔ¶³ÌÍ¼Æ¬ÁĞ±í...");
+        UploadDebug("å¼€å§‹è¯·æ±‚è¿œç¨‹å›¾ç‰‡åˆ—è¡¨...");
 
         LANShareManager.Instance.DownloadImageList((list) =>
         {
-            UploadDebug($"ÊÕµ½Ô¶³ÌÁĞ±í£º{list.Count} ÕÅ");
+            UploadDebug($"æ”¶åˆ°è¿œç¨‹åˆ—è¡¨ï¼š{list.Count} å¼ ");
             remoteImageFiles = list;
 
             if (list.Count == 0)
-                remoteStatusText.text = "¶Ô·½»¹Ã»ÓĞ·ÖÏíÍ¼Æ¬£¬µÈ´ıÖĞ...";
+                remoteStatusText.text = "å¯¹æ–¹è¿˜æ²¡æœ‰åˆ†äº«å›¾ç‰‡ï¼Œç­‰å¾…ä¸­...";
             else
-                remoteStatusText.text = $"¶Ô·½·ÖÏíÁË {list.Count} ÕÅ£¬µã»÷¡¾È·ÈÏÏÂÔØ¡¿";
+                remoteStatusText.text = $"å¯¹æ–¹åˆ†äº«äº† {list.Count} å¼ ï¼Œç‚¹å‡»ã€ç¡®è®¤ä¸‹è½½ã€‘";
         });
     }
 
     /// <summary>
-    /// Îª·¢ÏÖµÄÉè±¸´´½¨Ò»¸ö°´Å¥¡£
+    /// ä¸ºå‘ç°çš„è®¾å¤‡åˆ›å»ºä¸€ä¸ªæŒ‰é’®ã€‚
+    /// ç‚¹å‡»æŒ‰é’®å°è¯•è¿æ¥è¯¥è®¾å¤‡ã€‚
     /// </summary>
     private void AddDeviceButton(string deviceName, string ip, int port, bool isReady)
     {
         GameObject btnObj = Instantiate(deviceButtonPrefab, deviceListContent);
 
+        // è®¾ç½®å°ºå¯¸
         RectTransform rect = btnObj.GetComponent<RectTransform>();
         if (rect != null) rect.sizeDelta = new Vector2(deviceButtonWidth, deviceButtonHeight);
 
@@ -1842,41 +1999,40 @@ public class MainMenuManager : MonoBehaviour
         Text label = btnObj.GetComponentInChildren<Text>();
         if (label != null)
         {
-            string status = isReady ? "£¨¿ÉÏÂÔØ£©" : "";
+            // å°±ç»ªçš„è®¾å¤‡åŠ ä¸ª"ï¼ˆå¯ä¸‹è½½ï¼‰"åç¼€
+            string status = isReady ? "ï¼ˆå¯ä¸‹è½½ï¼‰" : "";
             label.text = $"{deviceName} ({ip}){status}";
             label.horizontalOverflow = HorizontalWrapMode.Wrap;
         }
 
-        // µã»÷Éè±¸ ¡ú Á¬½Ó
+        // ç‚¹å‡»è®¾å¤‡ â†’ å°è¯•è¿æ¥
         btn.onClick.AddListener(() =>
         {
-            UploadDebug($"========== µã»÷Éè±¸: {deviceName} ({ip}:{port}) ==========");
+            UploadDebug($"========== ç‚¹å‡»è®¾å¤‡: {deviceName} ({ip}:{port}) ==========");
             LANShareManager.Instance.ConnectToServer(ip, port);
             if (!LANShareManager.Instance.ConnectedToServer)
             {
-                UploadDebug("Á¬½ÓÊ§°Ü");
-                remoteStatusText.text = "Á¬½ÓÊ§°Ü";
+                UploadDebug("è¿æ¥å¤±è´¥");
+                remoteStatusText.text = "è¿æ¥å¤±è´¥";
                 return;
             }
 
             connectedServerIP = ip;
             deviceListPanel.SetActive(false);
             remoteImagePanel.SetActive(true);
-            remoteStatusText.text = "ÒÑÁ¬½Ó£¬µÈ´ı¶Ô·½·ÖÏí...";
-            UploadDebug("Á¬½Ó³É¹¦£¬µÈ´ı¶Ô·½¾ÍĞ÷¹ã²¥");
+            remoteStatusText.text = "å·²è¿æ¥ï¼Œç­‰å¾…å¯¹æ–¹åˆ†äº«...";
+            UploadDebug("è¿æ¥æˆåŠŸï¼Œç­‰å¾…å¯¹æ–¹å°±ç»ªå¹¿æ’­");
         });
     }
 
-    /// <summary>
-    /// Çå¿ÕÔ¶³ÌÍ¼Æ¬ÁĞ±í£¨ĞÂÁ÷³Ì²»ÔÙÏÔÊ¾ËõÂÔÍ¼£©¡£
-    /// </summary>
+    /// <summary>æ¸…ç©ºè¿œç¨‹å›¾ç‰‡åˆ—è¡¨ï¼ˆæ–°æµç¨‹ä¸å†æ˜¾ç¤ºç¼©ç•¥å›¾ï¼Œä»…æ¸…ç©ºå¤‡ç”¨ï¼‰ã€‚</summary>
     private void PopulateRemoteImages()
     {
         foreach (Transform child in remoteImageContent)
             Destroy(child.gameObject);
     }
 
-    /// <summary>ÇĞ»»Ô¶³ÌÍ¼Æ¬µÄÑ¡ÖĞ×´Ì¬£¨ĞÂÁ÷³ÌÎ´Ê¹ÓÃ£©¡£</summary>
+    /// <summary>åˆ‡æ¢è¿œç¨‹å›¾ç‰‡çš„é€‰ä¸­çŠ¶æ€ï¼ˆæ–°æµç¨‹æœªä½¿ç”¨ï¼Œä¿ç•™å¤‡ç”¨ï¼‰ã€‚</summary>
     private void ToggleRemoteSelection(int index, GameObject btnObj)
     {
         if (selectedRemoteIndices.Contains(index))
@@ -1884,25 +2040,25 @@ public class MainMenuManager : MonoBehaviour
             selectedRemoteIndices.Remove(index);
             Image img = btnObj.GetComponent<Image>();
             if (img != null) img.color = Color.white;
-            UploadDebug($"[Ô¶³Ì] È¡ÏûÑ¡Ôñ: {remoteImageFiles[index]}£¨¹² {selectedRemoteIndices.Count}£©");
+            UploadDebug($"[è¿œç¨‹] å–æ¶ˆé€‰æ‹©: {remoteImageFiles[index]}ï¼ˆå…± {selectedRemoteIndices.Count}ï¼‰");
         }
         else
         {
             selectedRemoteIndices.Add(index);
             Image img = btnObj.GetComponent<Image>();
             if (img != null) img.color = Color.green;
-            UploadDebug($"[Ô¶³Ì] Ñ¡Ôñ: {remoteImageFiles[index]}£¨¹² {selectedRemoteIndices.Count}£©");
+            UploadDebug($"[è¿œç¨‹] é€‰æ‹©: {remoteImageFiles[index]}ï¼ˆå…± {selectedRemoteIndices.Count}ï¼‰");
         }
     }
 
     /// <summary>
-    /// µã»÷"È·ÈÏÏÂÔØ"¡£
-    /// ÏÈÇëÇóÒ»´ÎÁĞ±íÈ·ÈÏ×îĞÂ×´Ì¬£¬ÔÙÖğ¸öÏÂÔØ¡£
+    /// ç‚¹å‡»"ç¡®è®¤ä¸‹è½½"ã€‚
+    /// å…ˆè¯·æ±‚ä¸€æ¬¡åˆ—è¡¨ç¡®è®¤æœ€æ–°çŠ¶æ€ï¼Œå†é€ä¸ªä¸‹è½½ã€‚
     /// </summary>
     private void DownloadSelectedImages()
     {
-        UploadDebug("========== µã»÷¡¾È·ÈÏÏÂÔØ¡¿ ==========");
-        remoteStatusText.text = "ÕıÔÚ»ñÈ¡ÁĞ±í...";
+        UploadDebug("========== ç‚¹å‡»ã€ç¡®è®¤ä¸‹è½½ã€‘ ==========");
+        remoteStatusText.text = "æ­£åœ¨è·å–åˆ—è¡¨...";
 
         LANShareManager.Instance.DownloadImageList((list) =>
         {
@@ -1910,19 +2066,23 @@ public class MainMenuManager : MonoBehaviour
 
             if (list.Count == 0)
             {
-                remoteStatusText.text = "¶Ô·½»¹Ã»ÓĞ·ÖÏíÍ¼Æ¬";
-                UploadDebug("Ô¶³ÌÁĞ±íÎª¿Õ");
+                remoteStatusText.text = "å¯¹æ–¹è¿˜æ²¡æœ‰åˆ†äº«å›¾ç‰‡";
+                UploadDebug("è¿œç¨‹åˆ—è¡¨ä¸ºç©º");
                 return;
             }
 
-            UploadDebug($"========== ÊÕµ½Ô¶³ÌÁĞ±í {list.Count} ÕÅ ==========");
+            UploadDebug($"========== æ”¶åˆ°è¿œç¨‹åˆ—è¡¨ {list.Count} å¼  ==========");
+            // å¯åŠ¨ä¸‹è½½åç¨‹ï¼ˆé€ä¸ªä¸‹è½½ï¼Œæ¯ä¸ªä¹‹é—´è®©å‡ºå¸§ï¼‰
             StartCoroutine(DownloadAllCoroutine(new List<string>(list)));
         });
     }
 
     /// <summary>
-    /// Öğ¸öÏÂÔØËùÓĞÔ¶³ÌÍ¼Æ¬¡£
-    /// Ã¿¸öÎÄ¼şÖ®¼äÈÃ³öÒ»Ö¡£¬±ÜÃâ¿¨¶Ù¡£
+    /// é€ä¸ªä¸‹è½½æ‰€æœ‰è¿œç¨‹å›¾ç‰‡ã€‚
+    /// 
+    /// ã€ä¸ºä»€ä¹ˆè¦è®©å‡ºå¸§ï¼Ÿã€‘
+    /// DownloadImageToShared æ˜¯åŒæ­¥é˜»å¡è°ƒç”¨ï¼Œä¸€æ¬¡æ€§ä¸‹è½½å¤šå¼ ä¼šå¡ UIã€‚
+    /// æ¯ä¸ªæ–‡ä»¶ä¹‹é—´è®©å‡ºä¸€å¸§ + 100ms ç¼“å†²ï¼Œä¿æŒç•Œé¢æµç•…ã€‚
     /// </summary>
     private IEnumerator DownloadAllCoroutine(List<string> files)
     {
@@ -1933,48 +2093,48 @@ public class MainMenuManager : MonoBehaviour
         for (int i = 0; i < total; i++)
         {
             string fn = files[i];
-            UploadDebug($"[{i + 1}/{total}] ¿ªÊ¼ÏÂÔØ: {fn}");
+            UploadDebug($"[{i + 1}/{total}] å¼€å§‹ä¸‹è½½: {fn}");
 
             bool done = false;
             string savedPath = null;
 
-            // DownloadImageToShared ÊÇÍ¬²½×èÈûµÄ£¬»Øµ÷»áÔÚ·µ»ØÇ°Ö´ĞĞ
+            // ä¸‹è½½ï¼ˆåŒæ­¥è°ƒç”¨ï¼Œå›è°ƒä¼šåœ¨è¿”å›å‰æ‰§è¡Œï¼‰
             LANShareManager.Instance.DownloadImageToShared(fn, (path) =>
             {
                 savedPath = path;
                 done = true;
             });
 
-            // ÈÃ³öÒ»Ö¡£¬±£³Ö UI Á÷³©
-            yield return null;
+            yield return null;   // è®©å‡ºä¸€å¸§ï¼Œåˆ·æ–° UI
 
             if (done && !string.IsNullOrEmpty(savedPath))
             {
                 completed++;
-                UploadDebug($"[{i + 1}/{total}] ³É¹¦: {savedPath}");
+                UploadDebug($"[{i + 1}/{total}] æˆåŠŸ: {savedPath}");
             }
             else
             {
                 failed++;
-                UploadDebug($"[{i + 1}/{total}] Ê§°Ü");
+                UploadDebug($"[{i + 1}/{total}] å¤±è´¥");
             }
 
-            remoteStatusText.text = $"½ø¶È {i + 1}/{total}£¨³É¹¦ {completed}£¬Ê§°Ü {failed}£©";
+            // æ›´æ–°çŠ¶æ€æ–‡å­—
+            remoteStatusText.text = $"è¿›åº¦ {i + 1}/{total}ï¼ˆæˆåŠŸ {completed}ï¼Œå¤±è´¥ {failed}ï¼‰";
 
-            // ÎÄ¼şÖ®¼ä¸ø 100ms »º³å
+            // æ–‡ä»¶ä¹‹é—´ç»™ 100ms ç¼“å†²ï¼ˆè®© socket çŠ¶æ€ç¨³å®šï¼‰
             yield return new WaitForSeconds(0.1f);
         }
 
-        remoteStatusText.text = $"ÏÂÔØÍê³É£º³É¹¦ {completed}/{total}£¬Ê§°Ü {failed}";
-        UploadDebug($"========== ÏÂÔØ½áÊø£º³É¹¦ {completed}£¬Ê§°Ü {failed} ==========");
+        remoteStatusText.text = $"ä¸‹è½½å®Œæˆï¼šæˆåŠŸ {completed}/{total}ï¼Œå¤±è´¥ {failed}";
+        UploadDebug($"========== ä¸‹è½½ç»“æŸï¼šæˆåŠŸ {completed}ï¼Œå¤±è´¥ {failed} ==========");
     }
 
-    /// <summary>ÏÂÔØÈ«²¿£¨±¸ÓÃ·½·¨£¬µ±Ç°Á÷³ÌÎ´Ê¹ÓÃ£©¡£</summary>
+    /// <summary>ä¸‹è½½å…¨éƒ¨ï¼ˆå¤‡ç”¨æ–¹æ³•ï¼Œå½“å‰æµç¨‹æœªä½¿ç”¨ï¼‰ã€‚</summary>
     private void DownloadAllRemoteImages()
     {
         int total = remoteImageFiles.Count;
         int completed = 0;
-        UploadDebug($"========== ¿ªÊ¼ÏÂÔØÈ«²¿ {total} ÕÅ ==========");
+        UploadDebug($"========== å¼€å§‹ä¸‹è½½å…¨éƒ¨ {total} å¼  ==========");
 
         foreach (var file in remoteImageFiles)
         {
@@ -1982,29 +2142,32 @@ public class MainMenuManager : MonoBehaviour
             LANShareManager.Instance.DownloadImageToShared(fn, (path) =>
             {
                 completed++;
-                UploadDebug($"ÏÂÔØÍê³É {completed}/{total}: {path}");
-                remoteStatusText.text = $"ÕıÔÚÏÂÔØ {completed}/{total} ÕÅ...";
+                UploadDebug($"ä¸‹è½½å®Œæˆ {completed}/{total}: {path}");
+                remoteStatusText.text = $"æ­£åœ¨ä¸‹è½½ {completed}/{total} å¼ ...";
 
                 if (completed >= total)
                 {
-                    remoteStatusText.text = $"ÏÂÔØÍê³É£¬¹² {total} ÕÅÒÑ½øÈë¹²Ïí·ÖÀà";
-                    UploadDebug("È«²¿ÏÂÔØÍê³É");
+                    remoteStatusText.text = $"ä¸‹è½½å®Œæˆï¼Œå…± {total} å¼ å·²è¿›å…¥å…±äº«åˆ†ç±»";
+                    UploadDebug("å…¨éƒ¨ä¸‹è½½å®Œæˆ");
                 }
             });
         }
     }
 
-    /// <summary>·ÖÏíÍ£Ö¹ÊÂ¼ş´¦Àí¡£</summary>
+    /// <summary>
+    /// åˆ†äº«åœæ­¢äº‹ä»¶å¤„ç†ï¼ˆç”± LANShareManager è§¦å‘ï¼‰ã€‚
+    /// </summary>
     private void HandleSharingStopped()
     {
-        UploadDebug("¡¾ÊÂ¼ş¡¿OnSharingStopped ´¥·¢");
-        if (shareStatusText != null) shareStatusText.text = "·ÖÏíÒÑÍ£Ö¹";
+        UploadDebug("ã€äº‹ä»¶ã€‘OnSharingStopped è§¦å‘");
+        if (shareStatusText != null) shareStatusText.text = "åˆ†äº«å·²åœæ­¢";
     }
 
     #endregion
 
-    #region ¹²Ïí·ÖÀà
+    #region å…±äº«åˆ†ç±»
 
+    /// <summary>ç‚¹å‡»"å…±äº«"åˆ†ç±»æŒ‰é’®ï¼šæ˜¾ç¤ºä¸‹è½½æ¥çš„å›¾ç‰‡åˆ—è¡¨ã€‚</summary>
     private void OnSharedCategoryClicked()
     {
         selectedCategory = GameDataManager.SharedCategory;
@@ -2012,14 +2175,16 @@ public class MainMenuManager : MonoBehaviour
         PopulateSharedImagePanel();
     }
 
+    /// <summary>å¼‚æ­¥å¡«å……å…±äº«å›¾ç‰‡é¢æ¿ã€‚</summary>
     private void PopulateSharedImagePanel()
     {
         StartCoroutine(PopulateSharedImagePanelAsync());
     }
 
+    /// <summary>å®é™…å¡«å……å…±äº«å›¾ç‰‡é¢æ¿çš„åç¨‹ã€‚</summary>
     private IEnumerator PopulateSharedImagePanelAsync()
     {
-        if (isSharedPanelLoading) { Debug.Log("¹²ÏíÃæ°åÕıÔÚ¼ÓÔØÖĞ"); yield break; }
+        if (isSharedPanelLoading) { Debug.Log("å…±äº«é¢æ¿æ­£åœ¨åŠ è½½ä¸­"); yield break; }
         isSharedPanelLoading = true;
 
         ReleaseDynamicSprites();
@@ -2036,7 +2201,7 @@ public class MainMenuManager : MonoBehaviour
         grid.childAlignment = TextAnchor.UpperCenter;
 
         List<string> files = GameDataManager.GetSharedImages();
-        UploadDebug($"[¹²ÏíÃæ°å] ÎÄ¼şÊı: {files.Count}");
+        UploadDebug($"[å…±äº«é¢æ¿] æ–‡ä»¶æ•°: {files.Count}");
 
         foreach (string file in files)
         {
@@ -2055,7 +2220,30 @@ public class MainMenuManager : MonoBehaviour
             if (img != null) img.sprite = sprite;
 
             string fileName = file;
-            btn.onClick.AddListener(() => OnSharedImageClicked(fileName));
+
+            // é•¿æŒ‰åˆ é™¤
+            LongPressHandler longPress = btnObj.GetComponent<LongPressHandler>();
+            if (longPress == null) longPress = btnObj.AddComponent<LongPressHandler>();
+
+            // é•¿æŒ‰å›è°ƒï¼šå¼¹å‡ºç¡®è®¤å¼¹çª—ï¼Œç¡®è®¤ååˆ é™¤
+            longPress.SetOnLongPress(() =>
+            {
+                UploadDebug($"[å…±äº«é¢æ¿] é•¿æŒ‰æ£€æµ‹åˆ°: {fileName}");
+                ShowConfirm($"æ˜¯å¦åˆ é™¤è¿™å¼ å…±äº«å›¾ç‰‡ï¼Ÿ\n{fileName}", () =>
+                {
+                    GameDataManager.RemoveSharedImage(fileName);
+                    UploadDebug($"[å…±äº«é¢æ¿] å·²åˆ é™¤: {fileName}");
+                    // åˆ·æ–°é¢æ¿
+                    PopulateSharedImagePanel();
+                });
+            });
+
+            // å•å‡»ï¼šè¿›å…¥éš¾åº¦é€‰æ‹©ï¼ˆå¦‚æœåˆšåˆšè§¦å‘è¿‡é•¿æŒ‰ï¼Œåˆ™å¿½ç•¥ï¼‰
+            btn.onClick.AddListener(() =>
+            {
+                if (LongPressHandler.ConsumeLongPressFlag()) return;
+                OnSharedImageClicked(fileName);
+            });
 
             yield return null;
         }
@@ -2064,29 +2252,29 @@ public class MainMenuManager : MonoBehaviour
     }
 
     /// <summary>
-    /// µã»÷¹²ÏíÍ¼Æ¬ ¡ú ½øÄÑ¶ÈÑ¡ÔñÃæ°å¡£
+    /// ç‚¹å‡»å…±äº«å›¾ç‰‡ â†’ è¿›éš¾åº¦é€‰æ‹©é¢æ¿ã€‚
     /// </summary>
     private void OnSharedImageClicked(string fileName)
     {
-        // ÓÃ¹²ÏíÁĞ±íµÄË÷Òı×÷Îª selectedImageIndex
+        // ç”¨å…±äº«åˆ—è¡¨çš„ç´¢å¼•ä½œä¸º selectedImageIndex
         selectedImageIndex = GameDataManager.GetSharedImages().IndexOf(fileName);
         ShowPanel(difficultyPanel);
     }
 
     #endregion
 
-    #region ¶¯Ì¬ Sprite ÊÍ·Å
+    #region åŠ¨æ€ Sprite é‡Šæ”¾
 
     /// <summary>
-    /// ÊÍ·ÅËùÓĞ¶¯Ì¬´´½¨µÄ Sprite ºÍÆäÎÆÀí¡£
+    /// é‡Šæ”¾æ‰€æœ‰åŠ¨æ€åˆ›å»ºçš„ Sprite å’Œå…¶çº¹ç†ã€‚
     /// 
-    /// ¡¾ÎªÊ²Ã´±ØĞëÊÖ¶¯ÊÍ·Å£¿¡¿
-    /// Í¨¹ı Sprite.Create ´´½¨µÄ Sprite ºÍ Texture2D ²»»á×Ô¶¯±» GC »ØÊÕ£¬
-    /// ±ØĞëÏÔÊ½ Destroy£¬·ñÔòÏÔ´æ»áÔ½Õ¼Ô½¶à¡£
+    /// ã€ä¸ºä»€ä¹ˆå¿…é¡»æ‰‹åŠ¨é‡Šæ”¾ï¼Ÿã€‘
+    /// é€šè¿‡ Sprite.Create åˆ›å»ºçš„ Sprite å’Œ Texture2D ä¸ä¼šè‡ªåŠ¨è¢« GC å›æ”¶ï¼Œ
+    /// å¿…é¡»æ˜¾å¼ Destroyï¼Œå¦åˆ™æ˜¾å­˜ä¼šè¶Šå è¶Šå¤šï¼ˆå°¤å…¶åå¤æ‰“å¼€ä¸Šä¼ /å…±äº«é¢æ¿æ—¶ï¼‰ã€‚
     /// 
-    /// ¡¾ÊÍ·ÅË³Ğò¡¿
-    /// ÏÈÏú»Ù Texture£¨Sprite ÒÀÀµµÄµ×²ã×ÊÔ´£©£¬ÔÙÏú»Ù Sprite¡£
-    /// ·´¹ıÀ´»áµ¼ÖÂ Unity ±¨´í¡£
+    /// ã€é‡Šæ”¾é¡ºåºã€‘
+    /// å…ˆé”€æ¯ Textureï¼ˆSprite ä¾èµ–çš„åº•å±‚èµ„æºï¼‰ï¼Œå†é”€æ¯ Spriteã€‚
+    /// åè¿‡æ¥ä¼šå¯¼è‡´ Unity æŠ¥é”™ã€‚
     /// </summary>
     private void ReleaseDynamicSprites()
     {
@@ -2097,9 +2285,9 @@ public class MainMenuManager : MonoBehaviour
             if (sprite == null) continue;
 
             if (sprite.texture != null)
-                Destroy(sprite.texture);
+                Destroy(sprite.texture);   // å…ˆé”€æ¯çº¹ç†
 
-            Destroy(sprite);
+            Destroy(sprite);               // å†é”€æ¯ Sprite
         }
 
         dynamicSprites.Clear();
@@ -2107,49 +2295,61 @@ public class MainMenuManager : MonoBehaviour
 
     #endregion
 
-    #region ¹ã¸æÓëÆäËû°´Å¥
+    #region å¹¿å‘Šä¸å…¶ä»–æŒ‰é’®
 
+    /// <summary>
+    /// ç‚¹å‡»"çœ‹å¹¿å‘Šå›ä½“åŠ›"æŒ‰é’®ã€‚
+    /// çœŸå®é¡¹ç›®éœ€è¦æ¥å¹¿å‘Š SDKï¼Œè¿™é‡Œç”¨æ¨¡æ‹Ÿçš„ ShowRewardedAdã€‚
+    /// </summary>
     private void OnAdStaminaClicked()
     {
-        adStaminaButton.interactable = false;   // ·ÀÁ¬µã
+        adStaminaButton.interactable = false;   // é˜²è¿ç‚¹
 
-        // Ä£Äâ¹ã¸æ£ºÖ±½Ó³É¹¦£¨ÕæÊµÏîÄ¿Ğè½Ó SDK£©
+        // æ¨¡æ‹Ÿå¹¿å‘Šï¼šç›´æ¥æˆåŠŸ
         ShowRewardedAd(() =>
         {
-            // ¹ã¸æ³É¹¦£º¼ÓÌåÁ¦ºÍ½ğ±Ò
+            // å¹¿å‘ŠæˆåŠŸ â†’ åŠ ä½“åŠ›å’Œé‡‘å¸
             GameDataManager.AddStamina(4);
             GameDataManager.AddCoins(2);
             UpdateStaminaDisplay();
             UpdateCoinDisplay();
-            Debug.Log("¹Û¿´¹ã¸æ³É¹¦£¬»ñµÃ4ÌåÁ¦¡¢2½ğ±Ò");
+            Debug.Log("è§‚çœ‹å¹¿å‘ŠæˆåŠŸï¼Œè·å¾—4ä½“åŠ›ã€2é‡‘å¸");
             adStaminaButton.interactable = true;
         }, () =>
         {
-            Debug.Log("¹ã¸æÎ´Íê³É£¬ÎŞ½±Àø");
+            // å¹¿å‘Šæœªå®Œæˆ
+            Debug.Log("å¹¿å‘Šæœªå®Œæˆï¼Œæ— å¥–åŠ±");
             adStaminaButton.interactable = true;
         });
     }
 
-    /// <summary>Ä£Äâ¹ã¸æ£¨ÕæÊµÏîÄ¿ĞèÌæ»»Îª SDK µ÷ÓÃ£©¡£</summary>
+    /// <summary>
+    /// æ¨¡æ‹Ÿå¹¿å‘Šï¼ˆçœŸå®é¡¹ç›®éœ€æ›¿æ¢ä¸º SDK è°ƒç”¨ï¼‰ã€‚
+    /// ç›´æ¥è°ƒç”¨ onSuccess è¡¨ç¤º"å¹¿å‘Šè§‚çœ‹æˆåŠŸ"ã€‚
+    /// </summary>
     private void ShowRewardedAd(Action onSuccess, Action onFail)
     {
         onSuccess?.Invoke();
     }
 
+    /// <summary>
+    /// ç‚¹å‡»"æ¯æ—¥æ‹¼å›¾"æŒ‰é’®ã€‚
+    /// æ£€æŸ¥ä»Šå¤©æ˜¯å¦å·²å®Œæˆ/å·²ç”Ÿæˆï¼Œç„¶ååˆ‡åˆ°æ¸¸æˆåœºæ™¯ã€‚
+    /// </summary>
     private void OnDailyPuzzleClicked()
     {
-        // ½ñÌìÒÑÍê³É
+        // ä»Šå¤©å·²å®Œæˆ â†’ æç¤º
         if (GameDataManager.IsDailyPuzzleCompletedToday())
         {
-            ShowConfirm("½ñÈÕÃ¿ÈÕÆ´Í¼ÒÑÍê³É£¬Ã÷ÌìÔÙÀ´°É£¡", null);
+            ShowConfirm("ä»Šæ—¥æ¯æ—¥æ‹¼å›¾å·²å®Œæˆï¼Œæ˜å¤©å†æ¥å§ï¼", null);
             return;
         }
 
-        // Ã»Éú³É¾ÍÉú³ÉĞÂµÄ
+        // æ²¡ç”Ÿæˆ â†’ ç”Ÿæˆæ–°çš„
         if (!GameDataManager.IsDailyPuzzleGeneratedToday())
             GameDataManager.GenerateDailyPuzzle();
 
-        // ±ê¼ÇÎªÃ¿ÈÕÆ´Í¼Ä£Ê½
+        // æ ‡è®°ä¸ºæ¯æ—¥æ‹¼å›¾æ¨¡å¼ï¼Œåˆ‡åˆ°æ¸¸æˆåœºæ™¯
         PlayerPrefs.SetInt("IsDailyPuzzle", 1);
         PlayerPrefs.Save();
         SceneManager.LoadScene("GameScene");
@@ -2157,16 +2357,22 @@ public class MainMenuManager : MonoBehaviour
 
     #endregion
 
-    #region Í¨ÓÃÈ·ÈÏµ¯´°
+    #region é€šç”¨ç¡®è®¤å¼¹çª—
 
+    /// <summary>
+    /// æ˜¾ç¤ºé€šç”¨ç¡®è®¤å¼¹çª—ã€‚
+    /// </summary>
+    /// <param name="message">å¼¹çª—å†…å®¹</param>
+    /// <param name="onConfirm">ç‚¹å‡»"æ˜¯"åçš„å›è°ƒï¼ˆå¯ä¸º nullï¼‰</param>
     private void ShowConfirm(string message, Action onConfirm)
     {
         confirmText.text = message;
         confirmAction = onConfirm;
         confirmPanel.SetActive(true);
-        confirmPanel.transform.SetAsLastSibling();
+        confirmPanel.transform.SetAsLastSibling();   // æ”¾åˆ°æœ€ä¸Šå±‚
 
-        // Ç¿ÖÆÌáÉı Canvas ²ã¼¶µ½×îÉÏ²ã
+        // å¼ºåˆ¶æå‡ Canvas å±‚çº§åˆ°æœ€é«˜
+        // ï¼ˆç¡®ä¿å¼¹çª—èƒ½ç›–ä½æ‰€æœ‰å…¶ä»– UIï¼‰
         Canvas confirmCanvas = confirmPanel.GetComponent<Canvas>();
         if (confirmCanvas == null)
         {
@@ -2177,96 +2383,116 @@ public class MainMenuManager : MonoBehaviour
         confirmCanvas.sortingOrder = 1000;
     }
 
+    /// <summary>ç‚¹å‡»å¼¹çª—"æ˜¯"æŒ‰é’®ã€‚</summary>
     private void OnConfirmYes()
     {
         confirmPanel.SetActive(false);
-        confirmAction?.Invoke();
+        confirmAction?.Invoke();   // æ‰§è¡Œå›è°ƒï¼ˆå¦‚æœéç©ºï¼‰
     }
 
     #endregion
 
-    #region ÓÎÏ·Æô¶¯
+    #region æ¸¸æˆå¯åŠ¨
 
     /// <summary>
-    /// Æô¶¯ÓÎÏ·³¡¾°¡£
-    /// °ÑÑ¡ÖĞµÄ·ÖÀà¡¢ÄÑ¶È¡¢Í¼Æ¬Ë÷ÒıĞ´Èë PlayerPrefs£¬
-    /// È»ºóÒì²½¼ÓÔØ GameScene¡£
+    /// å¯åŠ¨æ¸¸æˆåœºæ™¯ã€‚
+    /// 
+    /// ã€æ ¸å¿ƒæµç¨‹ã€‘
+    /// 1. æŠŠé€‰ä¸­çš„åˆ†ç±»ã€éš¾åº¦ã€å›¾ç‰‡ç´¢å¼•å†™å…¥ PlayerPrefs
+    /// 2. æ’­æ”¾åŠ è½½éŸ³æ•ˆ
+    /// 3. æ˜¾ç¤ºåŠ è½½é¢æ¿
+    /// 4. å¼‚æ­¥åŠ è½½ GameScene
+    /// 
+    /// ã€ä¸ºä»€ä¹ˆç”¨ PlayerPrefs ä¼ å‚ï¼Ÿã€‘
+    /// åˆ‡åœºæ™¯ä¼šé”€æ¯æ‰€æœ‰ç‰©ä½“ï¼Œå…¨å±€æ•°æ®æ— æ³•é€šè¿‡é™æ€å˜é‡ä¼ é€’ã€‚
+    /// PlayerPrefs æ˜¯è·¨åœºæ™¯çš„å®‰å…¨è½½ä½“ã€‚
     /// </summary>
     private void StartGame(int gridSize)
     {
+        // å†™å…¥å‚æ•°
         PlayerPrefs.SetString("SelectedCategory", selectedCategory);
         PlayerPrefs.SetInt("Difficulty", gridSize);
         PlayerPrefs.SetInt("SelectedImageIndex", selectedImageIndex);
         PlayerPrefs.Save();
 
-        // ²¥·Å¼ÓÔØÒôĞ§
+        // æ’­æ”¾åŠ è½½éŸ³æ•ˆ
         if (loadingSound != null && SoundManager.Instance != null)
             SoundManager.Instance.PlayLoadingSound(loadingSound);
 
-        // ÏÔÊ¾¼ÓÔØÃæ°å
+        // æ˜¾ç¤ºåŠ è½½é¢æ¿
         loadingPanel.SetActive(true);
         loadingPanel.transform.SetAsLastSibling();
-        if (loadingText != null) loadingText.text = "¼ÓÔØÖĞ...";
+        if (loadingText != null) loadingText.text = "åŠ è½½ä¸­...";
 
+        // å¯åŠ¨å¼‚æ­¥åŠ è½½åç¨‹
         StartCoroutine(LoadGameAsync());
     }
 
     /// <summary>
-    /// Òì²½¼ÓÔØÓÎÏ·³¡¾°£¬´ø¼Ù½ø¶ÈÌõ¡£
+    /// å¼‚æ­¥åŠ è½½æ¸¸æˆåœºæ™¯ï¼Œå¸¦å‡è¿›åº¦æ¡ã€‚
     /// 
-    /// ¡¾ÎªÊ²Ã´ÊÇ"¼Ù½ø¶È"£¿¡¿
-    /// asyncLoad.progress ×î´óÖ»ÄÜµ½ 0.9£¨Unity ±£Áô×îºó 0.1 ÓÃÓÚ¼¤»î³¡¾°£©¡£
-    /// ¶øÇÒÊµ¼Ê¼ÓÔØ¿ÉÄÜºÜ¿ì£¨<0.5 Ãë£©£¬½ø¶ÈÌõÒ»ÉÁ¶ø¹ı£¬ÌåÑé²»ºÃ¡£
-    /// ËùÒÔÕâÀïÓÃ"Êµ¼Ê½ø¶ÈºÍÊ±¼ä½ø¶ÈÈ¡×îĞ¡Öµ"µÄ·½Ê½£¬
-    /// ±£Ö¤ÖÁÉÙÏÔÊ¾ 3 ÃëµÄ¼ÓÔØ¶¯»­¡£
+    /// ã€ä¸ºä»€ä¹ˆæ˜¯"å‡è¿›åº¦"ï¼Ÿã€‘
+    /// asyncLoad.progress æœ€å¤§åªèƒ½åˆ° 0.9ï¼ˆUnity ä¿ç•™ 0.1 ç»™æ¿€æ´»åœºæ™¯ç”¨ï¼‰ã€‚
+    /// è€Œä¸”å®é™…åŠ è½½å¯èƒ½å¾ˆå¿«ï¼ˆ&lt;0.5 ç§’ï¼‰ï¼Œè¿›åº¦æ¡ä¸€é—ªè€Œè¿‡ï¼Œç”¨æˆ·çœ‹ä¸åˆ°ã€‚
+    /// æ‰€ä»¥è¿™é‡Œç”¨"å®é™…è¿›åº¦å’Œæ—¶é—´è¿›åº¦å–æœ€å°å€¼"ï¼š
+    ///   - æ—¶é—´è¿›åº¦ï¼š3 ç§’å†…ä» 0 èµ°åˆ° 1
+    ///   - å®é™…è¿›åº¦ï¼šUnity å†…éƒ¨è¿›åº¦
+    ///   å–ä¸¤è€…çš„æœ€å°å€¼ â†’ ä¿è¯è‡³å°‘æ˜¾ç¤º 3 ç§’çš„åŠ è½½åŠ¨ç”»
     /// </summary>
     private IEnumerator LoadGameAsync()
     {
         float startTime = Time.realtimeSinceStartup;
+
+        // å¼€å§‹å¼‚æ­¥åŠ è½½åœºæ™¯ï¼ˆä¸ç«‹å³æ¿€æ´»ï¼‰
         AsyncOperation asyncLoad = SceneManager.LoadSceneAsync("GameScene");
-        asyncLoad.allowSceneActivation = false;   // ÊÖ¶¯¿ØÖÆ¼¤»îÊ±»ú
+        asyncLoad.allowSceneActivation = false;   // æ‰‹åŠ¨æ§åˆ¶ä½•æ—¶åˆ‡æ¢
 
         float displayProgress = 0f;
         float realProgress = 0f;
 
         while (displayProgress < 1f || asyncLoad.progress < 0.9f)
         {
-            // Êµ¼Ê½ø¶È£¨¹éÒ»»¯µ½ 0~1£©
+            // å®é™…è¿›åº¦ï¼šå½’ä¸€åŒ–åˆ° 0~1
             realProgress = Mathf.Clamp01(asyncLoad.progress / 0.9f);
 
-            // Ê±¼ä½ø¶È£¨3 ÃëÄÚ´Ó 0 µ½ 1£©
+            // æ—¶é—´è¿›åº¦ï¼š3 ç§’å†…ä» 0 åˆ° 1
             float timeProgress = Mathf.Clamp01((Time.realtimeSinceStartup - startTime) / 3f);
 
-            // È¡Á½Õß×îĞ¡Öµ£¬±£Ö¤½ø¶ÈÌõ²»»á³¬¹ıÊ±¼ä½ø¶È
+            // å–å°å€¼ï¼ˆä¿è¯è¿›åº¦æ¡ä¸ä¼šè¶…è¿‡æ—¶é—´è¿›åº¦ï¼‰
             displayProgress = Mathf.Min(realProgress, timeProgress);
 
+            // æ›´æ–° UI
             if (loadingText != null)
-                loadingText.text = $"¼ÓÔØÖĞ... {Mathf.RoundToInt(displayProgress * 100)}%";
+                loadingText.text = $"åŠ è½½ä¸­... {Mathf.RoundToInt(displayProgress * 100)}%";
             if (loadingSlider != null)
                 loadingSlider.value = displayProgress;
 
             yield return null;
         }
 
-        if (loadingText != null) loadingText.text = "¼ÓÔØÖĞ... 100%";
+        // è¿›åº¦åˆ° 100%
+        if (loadingText != null) loadingText.text = "åŠ è½½ä¸­... 100%";
 
-        // Í£Ö¹¼ÓÔØÒôĞ§
+        // åœæ­¢åŠ è½½éŸ³æ•ˆ
         if (SoundManager.Instance != null)
             SoundManager.Instance.StopLoadingSound();
 
-        // ÔÊĞí¼¤»î³¡¾°£¨´¥·¢Êµ¼ÊÇĞ»»£©
+        // å…è®¸æ¿€æ´»åœºæ™¯ï¼ˆè§¦å‘å®é™…åˆ‡æ¢ï¼‰
+
         asyncLoad.allowSceneActivation = true;
     }
 
     #endregion
 
-    #region ¸öÈËĞÅÏ¢
+    #region ä¸ªäººä¿¡æ¯
 
+    /// <summary>åˆ·æ–°é‡‘å¸æ˜¾ç¤ºã€‚</summary>
     private void UpdateCoinDisplay()
     {
-        if (coinText != null) coinText.text = "½ğ±Ò£º" + GameDataManager.Coins;
+        if (coinText != null) coinText.text = "é‡‘å¸ï¼š" + GameDataManager.Coins;
     }
 
+    /// <summary>ç‚¹å‡»"ä¿®æ”¹åå­—"æŒ‰é’®ã€‚</summary>
     private void OnChangeNameClicked()
     {
         panelAfterNameChange = profilePanel;
@@ -2275,8 +2501,11 @@ public class MainMenuManager : MonoBehaviour
     }
 
     /// <summary>
-    /// È·ÈÏĞŞ¸ÄÃû×Ö¡£
-    /// Ğ£Ñé¹æÔò£º·Ç¿Õ + Ö»ÄÜ°üº¬×ÖÄ¸Êı×Ö¡£
+    /// ç¡®è®¤ä¿®æ”¹åå­—ã€‚
+    /// 
+    /// ã€æ ¡éªŒè§„åˆ™ã€‘
+    /// 1. éç©º
+    /// 2. åªèƒ½åŒ…å«å­—æ¯å’Œæ•°å­—ï¼ˆæ­£åˆ™ï¼š^[a-zA-Z0-9]+$ï¼‰
     /// </summary>
     private void OnNameConfirmed()
     {
@@ -2284,55 +2513,58 @@ public class MainMenuManager : MonoBehaviour
 
         if (string.IsNullOrEmpty(name))
         {
-            ShowConfirm("Ãû×Ö²»ÄÜÎª¿Õ", null);
+            ShowConfirm("åå­—ä¸èƒ½ä¸ºç©º", null);
             return;
         }
 
-        // ÕıÔò£ºÖ»ÔÊĞí a-z A-Z 0-9
+        // æ­£åˆ™éªŒè¯ï¼šåªå…è®¸ a-z A-Z 0-9
         if (!Regex.IsMatch(name, "^[a-zA-Z0-9]+$"))
         {
-            ShowConfirm("Ãû×ÖÖ»ÄÜ°üº¬×ÖÄ¸ºÍÊı×Ö", null);
+            ShowConfirm("åå­—åªèƒ½åŒ…å«å­—æ¯å’Œæ•°å­—", null);
             nameInputField.text = "";
             return;
         }
 
+        // ä¿å­˜åå­—
         confirmPanel.SetActive(false);
         GameDataManager.PlayerName = name;
+
+        // è¿”å›åˆ°æ”¹åå­—å‰çš„é¢æ¿
         ShowPanel(panelAfterNameChange);
     }
 
     /// <summary>
-    /// Ë¢ĞÂ¸öÈËĞÅÏ¢ UI£ºÍ·Ïñ¡¢Ãû×Ö¡¢µÈ¼¶¡¢¾­ÑéÌõ¡£
+    /// åˆ·æ–°ä¸ªäººä¿¡æ¯ UIï¼šå¤´åƒã€åå­—ã€ç­‰çº§ã€ç»éªŒæ¡ã€‚
     /// </summary>
     private void UpdateProfileUI()
     {
-        // ---------- Í·Ïñ ----------
+        // ---------- å¤´åƒ ----------
         if (profileAvatarImage != null)
         {
-            // ´Ó Resources ¼ÓÔØËùÓĞÍ·Ïñ£¨ÀÁ¼ÓÔØ£©
+            // æ‡’åŠ è½½ï¼šç¬¬ä¸€æ¬¡è°ƒç”¨æ—¶ä» Resources åŠ è½½æ‰€æœ‰å¤´åƒ
             if (avatarSprites == null || avatarSprites.Length == 0)
                 avatarSprites = Resources.LoadAll<Sprite>("Art/HeadPicture");
 
             int avatarIndex = GameDataManager.GetAvatarIndex();
             if (avatarSprites != null && avatarSprites.Length > 0)
             {
-                // Ô½½ç±£»¤
+                // è¶Šç•Œä¿æŠ¤
                 if (avatarIndex < 0 || avatarIndex >= avatarSprites.Length)
                     avatarIndex = 0;
                 profileAvatarImage.sprite = avatarSprites[avatarIndex];
             }
             else
             {
-                Debug.LogWarning("Ã»ÓĞÕÒµ½Í·ÏñÍ¼Æ¬");
+                Debug.LogWarning("æ²¡æœ‰æ‰¾åˆ°å¤´åƒå›¾ç‰‡");
             }
         }
 
-        // ---------- Ãû×Ö ----------
+        // ---------- åå­— ----------
         if (profileNameText != null) profileNameText.text = GameDataManager.PlayerName;
 
-        // ---------- µÈ¼¶ºÍ¾­Ñé ----------
+        // ---------- ç­‰çº§å’Œç»éªŒ ----------
         if (profileLevelText != null)
-            profileLevelText.text = $"µÈ¼¶ {GameDataManager.Level}  {GameDataManager.Experience}/{GameDataManager.GetRequiredExperience(GameDataManager.Level)}";
+            profileLevelText.text = $"ç­‰çº§ {GameDataManager.Level}  {GameDataManager.Experience}/{GameDataManager.GetRequiredExperience(GameDataManager.Level)}";
 
         if (experienceSlider != null)
         {
@@ -2344,16 +2576,19 @@ public class MainMenuManager : MonoBehaviour
 
     #endregion
 
-    #region Í·ÏñÑ¡Ôñ
+    #region å¤´åƒé€‰æ‹©
 
     /// <summary>
-    /// ´ò¿ªÍ·ÏñÑ¡ÔñÃæ°å£¬ÏÔÊ¾ËùÓĞ¿ÉÑ¡Í·Ïñ¡£
+    /// æ‰“å¼€å¤´åƒé€‰æ‹©é¢æ¿ï¼Œæ˜¾ç¤ºæ‰€æœ‰å¯é€‰å¤´åƒã€‚
+    /// å¤´åƒä» Resources/Art/HeadPicture åŠ è½½ã€‚
     /// </summary>
     private void OpenAvatarSelectPanel()
     {
+        // æ¸…ç†æ—§æŒ‰é’®
         foreach (Transform child in avatarScrollContent)
             Destroy(child.gameObject);
 
+        // ç½‘æ ¼å¸ƒå±€
         GridLayoutGroup grid = avatarScrollContent.GetComponent<GridLayoutGroup>();
         if (grid == null) grid = avatarScrollContent.gameObject.AddComponent<GridLayoutGroup>();
         grid.cellSize = new Vector2(150, 150);
@@ -2362,7 +2597,7 @@ public class MainMenuManager : MonoBehaviour
         grid.constraintCount = 3;
         grid.childAlignment = TextAnchor.UpperCenter;
 
-        // ´Ó Resources ¼ÓÔØËùÓĞÍ·Ïñ
+        // åŠ è½½æ‰€æœ‰å¤´åƒ
         avatarSprites = Resources.LoadAll<Sprite>("Art/HeadPicture");
         if (avatarSprites.Length == 0)
         {
@@ -2370,10 +2605,10 @@ public class MainMenuManager : MonoBehaviour
             return;
         }
 
-        // °´Ãû×ÖÅÅĞò£¬±£Ö¤Ã¿´ÎÏÔÊ¾Ë³ĞòÒ»ÖÂ
+        // æŒ‰åå­—æ’åºï¼Œä¿è¯æ¯æ¬¡æ˜¾ç¤ºé¡ºåºä¸€è‡´
         Array.Sort(avatarSprites, (a, b) => string.Compare(a.name, b.name));
 
-        // ÎªÃ¿¸öÍ·Ïñ´´½¨°´Å¥
+        // ä¸ºæ¯ä¸ªå¤´åƒåˆ›å»ºæŒ‰é’®
         for (int i = 0; i < avatarSprites.Length; i++)
         {
             GameObject btnObj = Instantiate(avatarButtonPrefab, avatarScrollContent);
@@ -2381,11 +2616,12 @@ public class MainMenuManager : MonoBehaviour
             Image img = btnObj.transform.Find("Image")?.GetComponent<Image>();
             if (img != null) img.sprite = avatarSprites[i];
 
+            // é—­åŒ…æ•è·
             int index = i;
             btn.onClick.AddListener(() => OnAvatarClicked(index));
         }
 
-        // ¹ö¶¯µ½¶¥²¿
+        // æ»šåŠ¨åˆ°é¡¶éƒ¨
         Canvas.ForceUpdateCanvases();
         ScrollRect scrollRect = avatarSelectPanel.GetComponentInChildren<ScrollRect>();
         if (scrollRect != null) scrollRect.verticalNormalizedPosition = 1f;
@@ -2393,6 +2629,7 @@ public class MainMenuManager : MonoBehaviour
         ShowPanel(avatarSelectPanel);
     }
 
+    /// <summary>ç‚¹å‡»æŸä¸ªå¤´åƒï¼šä¿å­˜é€‰æ‹©å¹¶è¿”å›ä¸ªäººä¿¡æ¯é¢æ¿ã€‚</summary>
     private void OnAvatarClicked(int index)
     {
         GameDataManager.SetAvatarIndex(index);
@@ -2402,10 +2639,14 @@ public class MainMenuManager : MonoBehaviour
 
     #endregion
 
-    #region ÊÕ²ØÃæ°å
+    #region æ”¶è—é¢æ¿
 
     /// <summary>
-    /// Ìî³äÊÕ²ØÃæ°å£ºÏÔÊ¾ËùÓĞÒÑÊÕ²ØµÄÍ¼Æ¬¡£
+    /// å¡«å……æ”¶è—é¢æ¿ï¼šæ˜¾ç¤ºæ‰€æœ‰å·²æ”¶è—çš„å›¾ç‰‡ã€‚
+    /// 
+    /// ã€æ”¶è—æ•°æ®æ ¼å¼ã€‘
+    /// GameDataManager é‡Œå­˜çš„æ˜¯ "åˆ†ç±»å_å›¾ç‰‡ç´¢å¼•" å­—ç¬¦ä¸²åˆ—è¡¨ã€‚
+    /// è¿™é‡Œè¦è§£æå‡ºæ¥ï¼Œä» AssetBundle é‡Œæ‰¾åˆ°å¯¹åº”çš„ Sprite æ˜¾ç¤ºã€‚
     /// </summary>
     private void PopulateFavoritesPanel()
     {
@@ -2424,7 +2665,7 @@ public class MainMenuManager : MonoBehaviour
 
         foreach (string fav in favorites)
         {
-            // fav µÄ¸ñÊ½ÊÇ "·ÖÀà_Ë÷Òı"£¬²ğ¿ª
+            // fav æ ¼å¼ï¼š"åˆ†ç±»_ç´¢å¼•"ï¼Œæ‹†å¼€
             string[] parts = fav.Split('_');
             if (parts.Length != 2) continue;
 
@@ -2432,11 +2673,12 @@ public class MainMenuManager : MonoBehaviour
             int imageIndex;
             if (!int.TryParse(parts[1], out imageIndex)) continue;
 
-            // ´Ó AB ÀïÄÃ¸Ã·ÖÀàµÄËùÓĞ Sprite
+            // ä» AB é‡Œæ‹¿è¯¥åˆ†ç±»çš„æ‰€æœ‰ Sprite
             Sprite[] sprites = AssetBundleManager.Instance.GetCategorySprites(category);
             Array.Sort(sprites, (a, b) => string.Compare(a.name, b.name));
             if (imageIndex < 0 || imageIndex >= sprites.Length) continue;
 
+            // åˆ›å»ºæ”¶è—æŒ‰é’®
             GameObject btnObj = Instantiate(imageButtonPrefab, favoritesScrollContent);
             Button btn = btnObj.GetComponent<Button>();
             Image img = btnObj.transform.Find("Image")?.GetComponent<Image>();
@@ -2447,12 +2689,13 @@ public class MainMenuManager : MonoBehaviour
             if (img != null)
             {
                 img.sprite = sprites[imageIndex];
+                // æœªè§£é”æ˜¾ç¤ºåŠé€æ˜ç°
                 img.color = unlocked ? Color.white : new Color(0.5f, 0.5f, 0.5f, 0.7f);
             }
             if (label != null)
-                label.text = unlocked ? "" : $"{GameDataManager.GetImagePrice(category, imageIndex)}½ğ±Ò";
+                label.text = unlocked ? "" : $"{GameDataManager.GetImagePrice(category, imageIndex)}é‡‘å¸";
 
-            // ±Õ°ü²¶»ñ
+            // é—­åŒ…æ•è·
             string cat = category;
             int idx = imageIndex;
 
@@ -2460,17 +2703,17 @@ public class MainMenuManager : MonoBehaviour
             {
                 if (GameDataManager.IsImageUnlocked(cat, idx))
                 {
-                    // ÒÑ½âËø ¡ú ½øÄÑ¶È
+                    // å·²è§£é” â†’ è¿›éš¾åº¦é¢æ¿
                     selectedCategory = cat;
                     selectedImageIndex = idx;
                     ShowPanel(difficultyPanel);
                 }
                 else
                 {
-                    // Î´½âËø ¡ú µ¯¹ºÂò
+                    // æœªè§£é” â†’ å¼¹è´­ä¹°
                     pendingPurchaseCategory = cat;
                     pendingPurchaseImageIndex = idx;
-                    purchaseText.text = $"ÊÇ·ñ»¨·Ñ {GameDataManager.GetImagePrice(cat, idx)} ½ğ±Ò½âËøÕâÕÅÍ¼Æ¬£¿";
+                    purchaseText.text = $"æ˜¯å¦èŠ±è´¹ {GameDataManager.GetImagePrice(cat, idx)} é‡‘å¸è§£é”è¿™å¼ å›¾ç‰‡ï¼Ÿ";
                     ShowPanel(purchasePanel);
                 }
             });

@@ -124,9 +124,15 @@ public class SafeArea : MonoBehaviour
     /// - 展开/收起系统通知栏
     /// - 从后台切回前台（某些系统会重新计算安全区）
     /// </summary>
+    private float checkTimer = 0f;
+
     private void Update()
     {
-        // 每帧对比一次，只有变化时才重新计算，省性能
+        // ★ 每 0.5 秒检查一次就够，安全区不会每一帧都变
+        checkTimer += Time.deltaTime;
+        if (checkTimer < 0.5f) return;
+        checkTimer = 0f;
+
         if (Screen.safeArea != lastSafeArea)
             ApplySafeArea();
     }
