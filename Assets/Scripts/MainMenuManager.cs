@@ -1,239 +1,262 @@
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.IO;
-using System.Text.RegularExpressions;
-using UnityEngine;
-using UnityEngine.SceneManagement;
-using UnityEngine.UI;
-using Random = UnityEngine.Random;
+using System;                              // Action 委托、DateTime、Exception
+using System.Collections;                  // IEnumerator（协程）
+using System.Collections.Generic;          // List、Dictionary、HashSet
+using System.IO;                           // File、Directory、Path
+using System.Text.RegularExpressions;      // Regex（正则表达式，用于验证名字格式）
+using UnityEngine;                         // Unity 基础 API
+using UnityEngine.SceneManagement;         // SceneManager（场景切换）
+using UnityEngine.UI;                      // UI 组件（Button、Text、Image、Slider、InputField、GridLayoutGroup 等）
+using Random = UnityEngine.Random;         // 给 Random 起别名，避免和 System.Random 冲突
 
 /// <summary>
-/// 主菜单管理器：负责主菜单所有 UI 面板的切换、分类按钮生成、图片选择、
-/// 个人信息、收藏、每日拼图、看广告恢复体力、购买、上传图片管理、
-/// 局域网分享（手动连接、多选下载、共享分类）等功能。
-/// 
-/// 图片加载统一使用 ImageLoader.LoadSpriteFromFileAsync 进行后台线程解码。
-/// 同时包含：
-/// - 防重入：各面板加载期间忽略新的加载请求。
-/// - 纹理释放：切换面板时释放动态创建的上传/共享 Sprite。
-/// - 局域网分享全流程实时 Debug，输出到 uploadDebugText。
+/// 主菜单管理器。
+///
+/// 【这个脚本是干什么的？】
+/// 这是整个主菜单场景的"总指挥"，负责：
+///   1. UI 面板切换（分类、个人信息、设置、收藏等）
+///   2. 分类按钮生成（从 AssetBundle 读取图片分类）
+///   3. 图片选择、难度选择、购买解锁
+///   4. 上传图片管理（从相册选图 → 保存到本地 → 显示列表）
+///   5. 局域网分享（分享方/接收方 UI 交互）
+///   6. 每日拼图、看广告回体力、体力/金币显示
+///
+/// 【关键设计点】
+/// - 面板分层：Base（基础层）/ Layer2 / Layer3 / Layer4，用 ShowPanel 统一管理
+/// - 防重入：isImagePanelLoading 等标记，防止重复加载
+/// - 动态纹理释放：上传/共享图片创建的 Sprite 用完要 Destroy
+/// - 调试日志：上传/分享全过程实时显示到 uploadDebugText
 /// </summary>
 public class MainMenuManager : MonoBehaviour
 {
     #region 单例（供 LANShareManager 输出日志）
 
-    /// <summary>当前主菜单实例。仅主菜单场景有效。</summary>
+    /// <summary>
+    /// 当前主菜单实例。
+    /// 因为 LANShareManager 需要向主菜单的 uploadDebugText 写日志，
+    /// 所以暴露一个静态引用。
+    /// 注意：只有主菜单场景（LevelScene）里才有这个实例，
+    ///       切到游戏场景后 Instance 会是 null。
+    /// </summary>
     public static MainMenuManager Instance { get; private set; }
 
     #endregion
 
     #region UI 引用 - 设置面板
 
+    // [Header] 只是让 Inspector 面板里显示一个分组标题，不影响逻辑。
+    // 下面这些 public 字段都需要在 Unity 里手动拖引用。
+
     [Header("设置面板")]
-    public GameObject settingsPanel;
-    public Button settingsButton;
-    public Button settingsCloseButton;
-    public Button stopBGMButton;
-    public Slider bgmSlider;
-    public Slider sfxSlider;
+    public GameObject settingsPanel;       // 设置面板根物体
+    public Button settingsButton;          // 打开设置按钮
+    public Button settingsCloseButton;     // 关闭设置按钮
+    public Button stopBGMButton;           // 停止/播放 BGM 按钮
+    public Slider bgmSlider;               // BGM 音量滑条
+    public Slider sfxSlider;               // 音效音量滑条
 
     [Header("退出游戏")]
-    public Button quitGameButton;
+    public Button quitGameButton;          // 退出游戏按钮
 
     [Header("加载音效")]
-    public AudioClip loadingSound;
+    public AudioClip loadingSound;         // 切场景时的加载音效
 
     #endregion
 
     #region UI 引用 - 局域网分享
 
     [Header("停止广播")]
-    public Button stopBroadcastButton;
+    public Button stopBroadcastButton;     // 断开连接/停止分享按钮
 
     [Header("局域网分享 UI")]
-    public GameObject deviceListPanel;
-    public RectTransform deviceListContent;
-    public GameObject deviceButtonPrefab;
-    public float deviceButtonWidth = 620f;
-    public float deviceButtonHeight = 100f;
-    public Button cancelDiscoverButton;
+    public GameObject deviceListPanel;     // 设备列表面板
+    public RectTransform deviceListContent;// 设备列表容器
+    public GameObject deviceButtonPrefab;  // 设备按钮预制体
+    public float deviceButtonWidth = 620f; // 设备按钮宽度
+    public float deviceButtonHeight = 100f;// 设备按钮高度
+    public Button cancelDiscoverButton;    // 取消搜索按钮
 
-    public GameObject remoteImagePanel;
+    public GameObject remoteImagePanel;    // 远程图片面板（接收方等待界面）
     public RectTransform remoteImageContent;
     public GameObject remoteImageButtonPrefab;
-    public Button cancelConnectButton;
-    public Button downloadSelectedButton;
-    public Text remoteStatusText;
+    public Button cancelConnectButton;     // 取消连接按钮
+    public Button downloadSelectedButton;  // 【确认下载】按钮
+    public Text remoteStatusText;          // 接收方状态文字
 
-    public GameObject shareSelectPanel;
+    public GameObject shareSelectPanel;    // 分享选择面板（分享方选择要传哪些图）
     public RectTransform shareSelectContent;
-    public Button startSharingButton;
-    public Button cancelShareSelectButton;
+    public Button startSharingButton;      // 【分享】按钮
+    public Button cancelShareSelectButton; // 取消分享选择按钮
 
     [Header("局域网分享")]
-    public Button shareButton;
-    public Button receiveButton;
-    public Text shareStatusText;
+    public Button shareButton;             // 主界面【分享】按钮
+    public Button receiveButton;           // 主界面【接收】按钮
+    public Text shareStatusText;           // 分享方状态文字
 
     [Header("共享分类")]
-    public GameObject sharedImagePanel;
+    public GameObject sharedImagePanel;    // 共享图片展示面板
     public RectTransform sharedImageContent;
-    public Button sharedCloseButton;
+    public Button sharedCloseButton;       // 关闭共享面板按钮
 
     #endregion
 
     #region UI 引用 - 个人信息
 
     [Header("修改名字")]
-    public Button changeNameButton;
+    public Button changeNameButton;        // 改名字按钮
 
     [Header("换头像")]
-    public Button changeAvatarButton;
-    public GameObject avatarSelectPanel;
+    public Button changeAvatarButton;      // 换头像按钮
+    public GameObject avatarSelectPanel;   // 头像选择面板
     public RectTransform avatarScrollContent;
-    public GameObject avatarButtonPrefab;
-    public Button avatarCloseButton;
-    public Image profileAvatarImage;
+    public GameObject avatarButtonPrefab;  // 头像按钮预制体
+    public Button avatarCloseButton;       // 关闭头像选择按钮
+    public Image profileAvatarImage;       // 个人信息页显示的头像
 
     [Header("上传图片")]
-    public Button uploadButtonInProfile;
-    public GameObject uploadManagePanel;
+    public Button uploadButtonInProfile;   // 个人信息页的"上传图片"按钮
+    public GameObject uploadManagePanel;   // 上传管理面板
     public RectTransform uploadScrollContent;
-    public Button uploadCloseButton;
-    public Button addImageButton;
+    public Button uploadCloseButton;       // 关闭上传管理面板按钮
+    public Button addImageButton;          // 【添加图片】按钮
 
     [Header("个人信息")]
-    public GameObject profilePanel;
-    public Text profileNameText;
-    public Text profileLevelText;
-    public Slider experienceSlider;
-    public Button favoritesButton;
+    public GameObject profilePanel;        // 个人信息面板
+    public Text profileNameText;           // 显示玩家名字
+    public Text profileLevelText;          // 显示玩家等级经验
+    public Slider experienceSlider;        // 经验条
+    public Button favoritesButton;         // 打开收藏按钮
 
     [Header("姓名输入面板")]
-    public GameObject nameInputPanel;
-    public InputField nameInputField;
-    public Button nameConfirmButton;
+    public GameObject nameInputPanel;      // 输入名字的面板
+    public InputField nameInputField;      // 输入框
+    public Button nameConfirmButton;       // 确认按钮
 
     [Header("我的收藏面板")]
-    public GameObject favoritesPanel;
+    public GameObject favoritesPanel;      // 收藏面板
     public RectTransform favoritesScrollContent;
-    public Button favoritesCloseButton;
+    public Button favoritesCloseButton;    // 关闭收藏面板按钮
 
     #endregion
 
     #region UI 引用 - 分类与图片
 
     [Header("分类 ScrollView")]
-    public GameObject categoryScrollView;
+    public GameObject categoryScrollView;  // 分类列表（主界面主体）
     public RectTransform categoryScrollContent;
-    public GameObject categoryButtonPrefab;
+    public GameObject categoryButtonPrefab;// 分类按钮预制体
 
     [Header("分类预览设置")]
-    public float previewChangeInterval = 3f;
-    public float fadeDuration = 0.5f;
+    public float previewChangeInterval = 3f; // 预览图切换间隔（秒）
+    public float fadeDuration = 0.5f;        // 预览图淡入淡出时长
 
     [Header("图片选择面板")]
-    public GameObject imageSelectPanel;
-    public Button closeImagePanelButton;
+    public GameObject imageSelectPanel;    // 某分类的图片列表面板
+    public Button closeImagePanelButton;   // 关闭按钮
     public RectTransform imageScrollContent;
-    public GameObject imageButtonPrefab;
+    public GameObject imageButtonPrefab;   // 图片按钮预制体
 
     [Header("难度面板")]
-    public GameObject difficultyPanel;
-    public Button easyButton;
-    public Button normalButton;
-    public Button hardButton;
-    public Button difficultyCancelButton;
+    public GameObject difficultyPanel;     // 难度选择面板
+    public Button easyButton;              // 简单
+    public Button normalButton;            // 普通
+    public Button hardButton;              // 困难
+    public Button difficultyCancelButton;  // 取消按钮
 
     [Header("购买面板")]
-    public GameObject purchasePanel;
-    public Text purchaseText;
-    public Button confirmPurchaseButton;
-    public Button cancelPurchaseButton;
+    public GameObject purchasePanel;       // 购买确认面板
+    public Text purchaseText;              // "是否花费 X 金币解锁"
+    public Button confirmPurchaseButton;   // 确认购买
+    public Button cancelPurchaseButton;    // 取消购买
 
     #endregion
 
     #region UI 引用 - 通用
 
     [Header("每日拼图")]
-    public Button dailyPuzzleButton;
+    public Button dailyPuzzleButton;       // 每日拼图入口按钮
 
     [Header("加载面板")]
-    public GameObject loadingPanel;
-    public Text loadingText;
-    public Slider loadingSlider;
+    public GameObject loadingPanel;        // 切场景时的加载面板
+    public Text loadingText;               // 加载进度文字
+    public Slider loadingSlider;           // 加载进度条
 
     [Header("上传实时 Debug")]
     [Tooltip("把上传全过程日志显示到主菜单的 Text 上，方便真机排查。")]
-    public Text uploadDebugText;
+    public Text uploadDebugText;           // 显示调试日志的 Text
     [Tooltip("Debug Text 最多保留多少行。")]
-    public int uploadDebugMaxLines = 80;
+    public int uploadDebugMaxLines = 80;   // 日志最大行数
 
     [Header("通用确认弹窗")]
-    public GameObject confirmPanel;
-    public Text confirmText;
-    public Button confirmYesButton;
-    public Button confirmNoButton;
+    public GameObject confirmPanel;        // 通用确认弹窗
+    public Text confirmText;               // 弹窗内容
+    public Button confirmYesButton;        // 是
+    public Button confirmNoButton;         // 否
 
     [Header("广告恢复")]
-    public Button adStaminaButton;
+    public Button adStaminaButton;         // 看广告回体力按钮
 
     [Header("体力显示")]
-    public Text staminaText;
-    public Slider staminaSlider;
+    public Text staminaText;               // 体力文字
+    public Slider staminaSlider;           // 体力进度条
 
     [Header("金币显示")]
-    public Text coinText;
+    public Text coinText;                  // 金币文字
 
     [Header("底部按钮")]
-    public Button profileButton;
-    public Button categoryButton;
+    public Button profileButton;           // 底部：个人信息
+    public Button categoryButton;          // 底部：分类
 
     #endregion
 
     #region 私有状态
 
-    private bool isFlashing = false;
-    private string selectedCategory;
-    private int selectedImageIndex = -1;
-    private string pendingPurchaseCategory;
-    private int pendingPurchaseImageIndex;
+    private bool isFlashing = false;              // 金币不足闪烁中标记（防止重复触发）
+    private string selectedCategory;              // 当前选中的分类名
+    private int selectedImageIndex = -1;          // 当前选中的图片索引
+    private string pendingPurchaseCategory;       // 待购买的分类
+    private int pendingPurchaseImageIndex;        // 待购买的图片索引
 
-    // 面板层级管理
-    private GameObject currentBasePanel;
-    private GameObject currentLayer2Panel;
-    private GameObject currentLayer3Panel;
-    private GameObject currentLayer4Panel;
+    // ---------- 面板层级管理 ----------
+    // 面板分四层，越靠上层越"浮"在屏幕上方。
+    // ShowPanel 会根据要显示的面板自动隐藏它下面的层。
+    // 例：显示 Layer2 面板时，Layer3/Layer4 会被隐藏。
+    private GameObject currentBasePanel;          // 当前基础面板（分类 or 个人信息）
+    private GameObject currentLayer2Panel;        // 第二层
+    private GameObject currentLayer3Panel;        // 第三层（难度选择）
+    private GameObject currentLayer4Panel;        // 第四层（购买）
 
-    // 预览图协程缓存
+    // ---------- 预览图协程缓存 ----------
+    // 每个分类按钮都有一个"不断切换预览图"的协程。
+    // 用字典存起来，方便刷新分类按钮时统一停止。
     private Dictionary<Button, Coroutine> previewCoroutines = new Dictionary<Button, Coroutine>();
 
-    private Action confirmAction;
-    private GameObject panelAfterNameChange;
-    private Sprite[] avatarSprites;
+    private Action confirmAction;                 // 通用确认弹窗的"是"回调
+    private GameObject panelAfterNameChange;      // 改完名字后要返回的面板
+    private Sprite[] avatarSprites;               // 头像 Sprite 缓存
 
-    // 局域网分享状态
-    private List<string> discoveredDevices = new List<string>();
-    private List<string> remoteImageFiles = new List<string>();
-    private HashSet<int> selectedRemoteIndices = new HashSet<int>();
-    private List<string> shareSelectedFiles = new List<string>();
-    private string connectedServerIP = null;
+    // ---------- 局域网分享状态 ----------
+    private List<string> discoveredDevices = new List<string>(); // 发现的设备（entry 字符串）
+    private List<string> remoteImageFiles = new List<string>();  // 从服务端拉取的图片列表
+    private HashSet<int> selectedRemoteIndices = new HashSet<int>(); // 选中的图片（新流程已不用）
+    private List<string> shareSelectedFiles = new List<string>();   // 分享时勾选的文件
+    private string connectedServerIP = null;     // 已连接的服务器 IP
 
+    // ---------- 防重入标志 ----------
+    // 作用：某个面板加载时，如果用户又触发加载，
+    //       直接忽略第二次请求，避免出现"重复创建 UI 元素"的 bug。
+    private bool isImagePanelLoading = false;     // 图片选择面板加载中
+    private bool isSharePanelLoading = false;     // 分享选择面板加载中
+    private bool isSharedPanelLoading = false;    // 共享分类面板加载中
 
-    // ★ 防重入标志
-    private bool isImagePanelLoading = false;    // 图片选择面板
-
-    private bool isSharePanelLoading = false;    // 分享选择面板
-    private bool isSharedPanelLoading = false;   // 共享分类面板
-
-    // 上传管理面板当前刷新协程，用于强制刷新时取消旧协程
+    // 上传管理面板当前刷新协程（用于刷新前取消旧协程）
     private Coroutine uploadPanelCoroutine = null;
 
-    // ★ 动态创建的 Sprite 列表（上传/共享来源），用于面板切换时释放
+    // ---------- 动态 Sprite 列表 ----------
+    // 上传/共享图片是运行时从文件读出来的，创建的 Sprite 和 Texture 需要手动 Destroy。
+    // 用列表统一记录，切面板时一次性释放。
     private List<Sprite> dynamicSprites = new List<Sprite>();
 
-    // 上传实时 Debug 行
+    // ---------- 调试日志行 ----------
     private readonly List<string> uploadDebugLines = new List<string>();
 
     #endregion
@@ -241,23 +264,32 @@ public class MainMenuManager : MonoBehaviour
     #region 上传实时 Debug
 
     /// <summary>
-    /// 追加一行 Debug 日志到 uploadDebugText（同时输出到控制台）。
-    /// 该方法为 public，供 LANShareManager 等其他模块调用。
+    /// 追加一行调试日志。
+    /// 既输出到 Unity 控制台，也显示到 uploadDebugText。
+    /// 
+    /// 【为什么是 public？】
+    /// LANShareManager 需要在后台线程把日志刷到这里。
+    /// LANShareManager 内部维护了一个队列，
+    /// 在主线程 Update 里逐条调用本方法。
     /// </summary>
     public void UploadDebug(string message)
     {
+        // 前缀带时间戳，方便排查"什么时间发生了什么"
         string line = $"[{DateTime.Now:HH:mm:ss.fff}] {message}";
         Debug.Log(line);
 
+        // 没绑定 Text 就只进控制台
         if (uploadDebugText == null)
             return;
 
         uploadDebugLines.Add(line);
 
+        // 超过上限就移除最老的行
         int maxLines = Mathf.Max(10, uploadDebugMaxLines);
         while (uploadDebugLines.Count > maxLines)
             uploadDebugLines.RemoveAt(0);
 
+        // 用换行符拼接所有行，一次性赋给 Text
         uploadDebugText.text = string.Join("\n", uploadDebugLines);
     }
 
@@ -274,18 +306,23 @@ public class MainMenuManager : MonoBehaviour
 
     private void Awake()
     {
+        // 设置全局单例
         Instance = this;
-        // GameDataManager.ResetForEditor(); // 测试用
+
+        // 测试用：清空所有 PlayerPrefs（正式发布时务必注释掉！）
+        // GameDataManager.ResetForEditor();
     }
 
     private void Start()
     {
-        // ★ 启动时清空并打印一条
+        // 清空上次场景遗留的日志
         ClearUploadDebug();
         UploadDebug("========== 主菜单启动 ==========");
 
+        // 订阅"分享停止"事件
         LANShareManager.Instance.OnSharingStopped += HandleSharingStopped;
 
+        // 等 AB 包加载完成后生成分类按钮
         StartCoroutine(WaitForAssetBundle());
 
         // ========== 设置面板 ==========
@@ -294,6 +331,7 @@ public class MainMenuManager : MonoBehaviour
         stopBGMButton.onClick.AddListener(ToggleBGM);
         UpdateBGMButtonText();
 
+        // 初始化 BGM 滑条
         bgmSlider.minValue = 0f;
         bgmSlider.maxValue = 1f;
         bgmSlider.value = SoundManager.Instance != null ? SoundManager.Instance.BGMVolume : 0.5f;
@@ -302,6 +340,7 @@ public class MainMenuManager : MonoBehaviour
             if (SoundManager.Instance != null) SoundManager.Instance.SetBGMVolume(v);
         });
 
+        // 初始化音效滑条
         sfxSlider.minValue = 0f;
         sfxSlider.maxValue = 1f;
         sfxSlider.value = SoundManager.Instance != null ? SoundManager.Instance.SFXVolume : 1f;
@@ -313,6 +352,7 @@ public class MainMenuManager : MonoBehaviour
         quitGameButton.onClick.AddListener(QuitGame);
 
         // ========== 停止广播 ==========
+        // 用户点"停止广播/断开"按钮：停止分享 + 断开连接 + 回到基础面板
         stopBroadcastButton.onClick.AddListener(() =>
         {
             UploadDebug("========== 点击【停止广播】 ==========");
@@ -368,21 +408,24 @@ public class MainMenuManager : MonoBehaviour
         confirmYesButton.onClick.AddListener(OnConfirmYes);
         confirmNoButton.onClick.AddListener(() => confirmPanel.SetActive(false));
 
+        // 底部按钮：切换基础面板
         profileButton.onClick.AddListener(() => ShowPanel(profilePanel));
         categoryButton.onClick.AddListener(() => ShowPanel(categoryScrollView));
 
         sharedCloseButton.onClick.AddListener(() => ShowPanel(categoryScrollView));
 
+        // 难度面板的取消按钮：返回到上一层
         difficultyCancelButton.onClick.AddListener(() =>
         {
             if (currentLayer2Panel != null) ShowPanel(currentLayer2Panel);
             else ShowPanel(currentBasePanel ?? categoryScrollView);
         });
 
-        // ========== 体力与初始面板 ==========
+        // ========== 体力系统初始化 ==========
         GameDataManager.InitStaminaSystem();
-        StartCoroutine(UpdateStaminaUI());
+        StartCoroutine(UpdateStaminaUI());   // 每秒刷新体力显示
 
+        // 首次游戏让玩家输入名字，否则直接进分类面板
         if (string.IsNullOrEmpty(GameDataManager.PlayerName))
         {
             panelAfterNameChange = categoryScrollView;
@@ -410,10 +453,11 @@ public class MainMenuManager : MonoBehaviour
 
         closeImagePanelButton.onClick.AddListener(() => ShowPanel(currentBasePanel ?? categoryScrollView));
 
-        // ========== 初始化 ==========
+        // ========== 初始状态 ==========
         UpdateCoinDisplay();
-        loadingPanel.SetActive(false);
+        loadingPanel.SetActive(false);   // 加载面板默认隐藏
 
+        // 这些面板一开始都要隐藏
         avatarSelectPanel.SetActive(false);
         shareSelectPanel.SetActive(false);
         deviceListPanel.SetActive(false);
@@ -424,18 +468,21 @@ public class MainMenuManager : MonoBehaviour
 
     private void OnEnable()
     {
+        // 每次物体被激活时刷新金币和玩家信息（比如从游戏返回主菜单）
         UpdateCoinDisplay();
         UpdateProfileUI();
     }
 
     private void OnDestroy()
     {
+        // 清空单例
         if (Instance == this) Instance = null;
 
+        // 取消事件订阅（防止内存泄漏）
         if (LANShareManager.Instance != null)
             LANShareManager.Instance.OnSharingStopped -= HandleSharingStopped;
 
-        // 场景销毁时释放动态纹理
+        // 释放动态纹理，避免显存泄漏
         ReleaseDynamicSprites();
     }
 
@@ -443,10 +490,17 @@ public class MainMenuManager : MonoBehaviour
 
     #region AssetBundle 等待
 
+    /// <summary>
+    /// 等待 AssetBundleManager 加载完毕，再生成分类按钮。
+    /// 
+    /// 【为什么要等？】
+    /// 分类按钮需要显示预览图，预览图来自 AB 包。
+    /// AB 加载是异步的（可能几秒），所以这里轮询等待。
+    /// </summary>
     private IEnumerator WaitForAssetBundle()
     {
         while (AssetBundleManager.Instance == null || !AssetBundleManager.Instance.IsLoaded)
-            yield return null;
+            yield return null;   // 每帧检查一次
 
         GenerateCategoryButtons();
         UpdateCoinDisplay();
@@ -457,6 +511,22 @@ public class MainMenuManager : MonoBehaviour
 
     #region 面板管理
 
+    /// <summary>
+    /// 显示指定面板，并自动隐藏其他不该显示的面板。
+    /// 
+    /// 【面板分层】
+    /// - 基础层：categoryScrollView（分类）、profilePanel（个人信息）
+    /// - 第 2 层：imageSelectPanel、favoritesPanel、uploadManagePanel、
+    ///           avatarSelectPanel、shareSelectPanel、deviceListPanel、
+    ///           remoteImagePanel、sharedImagePanel、settingsPanel
+    /// - 第 3 层：difficultyPanel
+    /// - 第 4 层：purchasePanel
+    /// - 特殊：nameInputPanel（独占，超高层级）
+    /// 
+    /// 【核心思路】
+    /// 根据要显示的面板属于哪一层，先隐藏它上面所有层，
+    /// 再显示目标面板。
+    /// </summary>
     private void ShowPanel(GameObject panelToShow)
     {
         if (panelToShow == null)
@@ -466,26 +536,28 @@ public class MainMenuManager : MonoBehaviour
             return;
         }
 
+        // 切换面板时先关掉确认弹窗
         confirmPanel.SetActive(false);
 
-        // 基础面板
+        // ---------- 基础面板 ----------
         if (panelToShow == categoryScrollView || panelToShow == profilePanel)
         {
             HideOverlayPanels();
             categoryScrollView.SetActive(panelToShow == categoryScrollView);
             profilePanel.SetActive(panelToShow == profilePanel);
             currentBasePanel = panelToShow;
-            panelToShow.transform.SetAsLastSibling();
+            panelToShow.transform.SetAsLastSibling();  // 放到 UI 最上层
         }
-        // 第二层面板
+        // ---------- 第二层面板 ----------
         else if (panelToShow == imageSelectPanel || panelToShow == favoritesPanel ||
                  panelToShow == uploadManagePanel || panelToShow == avatarSelectPanel ||
                  panelToShow == shareSelectPanel || panelToShow == deviceListPanel ||
                  panelToShow == remoteImagePanel || panelToShow == sharedImagePanel ||
                  panelToShow == settingsPanel)
         {
-            HidePanelsAboveLayer2();
+            HidePanelsAboveLayer2();   // 先隐藏第三、四层
 
+            // 隐藏所有基础层和第二层面板
             categoryScrollView.SetActive(false);
             profilePanel.SetActive(false);
 
@@ -499,6 +571,7 @@ public class MainMenuManager : MonoBehaviour
             sharedImagePanel.SetActive(false);
             settingsPanel.SetActive(false);
 
+            // 显示目标面板
             if (panelToShow == imageSelectPanel) imageSelectPanel.SetActive(true);
             else if (panelToShow == favoritesPanel) favoritesPanel.SetActive(true);
             else if (panelToShow == uploadManagePanel) uploadManagePanel.SetActive(true);
@@ -512,7 +585,7 @@ public class MainMenuManager : MonoBehaviour
             currentLayer2Panel = panelToShow;
             panelToShow.transform.SetAsLastSibling();
         }
-        // 第三层面板
+        // ---------- 第三层：难度 ----------
         else if (panelToShow == difficultyPanel)
         {
             HidePanelsAboveLayer3();
@@ -520,7 +593,7 @@ public class MainMenuManager : MonoBehaviour
             currentLayer3Panel = panelToShow;
             panelToShow.transform.SetAsLastSibling();
         }
-        // 第四层面板
+        // ---------- 第四层：购买 ----------
         else if (panelToShow == purchasePanel)
         {
             HidePanelsAboveLayer4();
@@ -528,13 +601,14 @@ public class MainMenuManager : MonoBehaviour
             currentLayer4Panel = panelToShow;
             panelToShow.transform.SetAsLastSibling();
         }
-        // 姓名输入面板
+        // ---------- 特殊：姓名输入 ----------
         else if (panelToShow == nameInputPanel)
         {
-            HideAllPanels();
+            HideAllPanels();   // 全部隐藏，独占屏幕
             nameInputPanel.SetActive(true);
             nameInputPanel.transform.SetAsLastSibling();
 
+            // 强制提升 Canvas 层级，确保在所有 UI 之上
             Canvas canvas = nameInputPanel.GetComponent<Canvas>();
             if (canvas != null)
             {
@@ -543,11 +617,13 @@ public class MainMenuManager : MonoBehaviour
             }
         }
 
+        // ---------- 显示后自动触发的刷新逻辑 ----------
         if (panelToShow == profilePanel) UpdateProfileUI();
         if (panelToShow == favoritesPanel) PopulateFavoritesPanel();
         if (panelToShow == uploadManagePanel) PopulateUploadManagePanel();
     }
 
+    /// <summary>隐藏所有非基础面板（基础面板保持原样）。</summary>
     private void HideOverlayPanels()
     {
         settingsPanel.SetActive(false);
@@ -568,6 +644,7 @@ public class MainMenuManager : MonoBehaviour
         currentLayer4Panel = null;
     }
 
+    /// <summary>隐藏第二层以上的所有面板。</summary>
     private void HidePanelsAboveLayer2()
     {
         settingsPanel.SetActive(false);
@@ -584,6 +661,7 @@ public class MainMenuManager : MonoBehaviour
         currentLayer4Panel = null;
     }
 
+    /// <summary>隐藏第三层以上的所有面板。</summary>
     private void HidePanelsAboveLayer3()
     {
         purchasePanel.SetActive(false);
@@ -591,11 +669,13 @@ public class MainMenuManager : MonoBehaviour
         currentLayer4Panel = null;
     }
 
+    /// <summary>隐藏第四层以上的所有面板。</summary>
     private void HidePanelsAboveLayer4()
     {
         nameInputPanel.SetActive(false);
     }
 
+    /// <summary>隐藏所有面板（包括基础层）。</summary>
     private void HideAllPanels()
     {
         settingsPanel.SetActive(false);
@@ -625,6 +705,7 @@ public class MainMenuManager : MonoBehaviour
 
     private void OpenSettingsPanel()
     {
+        // 打开设置前同步当前音量到滑条
         if (SoundManager.Instance != null)
         {
             bgmSlider.value = SoundManager.Instance.BGMVolume;
@@ -636,8 +717,10 @@ public class MainMenuManager : MonoBehaviour
     private void QuitGame()
     {
 #if UNITY_EDITOR
+        // 编辑器里退出用这个（Application.Quit 在编辑器里无效）
         UnityEditor.EditorApplication.isPlaying = false;
 #else
+        // 真机上退出
         Application.Quit();
 #endif
     }
@@ -658,6 +741,7 @@ public class MainMenuManager : MonoBehaviour
     {
         if (stopBGMButton == null) return;
 
+        // 获取按钮上的 Text（子物体）
         Text label = stopBGMButton.GetComponentInChildren<Text>();
         if (label == null) return;
 
@@ -669,29 +753,41 @@ public class MainMenuManager : MonoBehaviour
 
     #region 分类按钮生成
 
+    /// <summary>
+    /// 生成分类按钮（主界面的核心 UI）。
+    /// 会先清理旧的按钮和协程，然后创建：
+    ///   - 6 个普通分类按钮
+    ///   - 1 个"上传"按钮
+    ///   - 1 个"共享"按钮
+    /// </summary>
     private void GenerateCategoryButtons()
     {
+        // 先停掉所有正在运行的预览图协程（避免泄漏）
         foreach (var kvp in previewCoroutines)
         {
             if (kvp.Value != null) StopCoroutine(kvp.Value);
         }
         previewCoroutines.Clear();
 
+        // 销毁所有旧的分类按钮
         foreach (Transform child in categoryScrollContent)
             Destroy(child.gameObject);
 
+        // 设置 GridLayoutGroup（网格布局）
         GridLayoutGroup grid = categoryScrollContent.GetComponent<GridLayoutGroup>();
         if (grid == null) grid = categoryScrollContent.gameObject.AddComponent<GridLayoutGroup>();
-        grid.cellSize = new Vector2(350, 350);
-        grid.spacing = new Vector2(50, 50);
+        grid.cellSize = new Vector2(350, 350);       // 每个格子 350x350
+        grid.spacing = new Vector2(50, 50);          // 间距 50
         grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-        grid.constraintCount = 2;
+        grid.constraintCount = 2;                    // 一行两列
         grid.childAlignment = TextAnchor.UpperCenter;
 
-        // 普通分类按钮
+        // ---------- 普通分类按钮 ----------
         for (int i = 0; i < GameDataManager.Categories.Length; i++)
         {
             string category = GameDataManager.Categories[i];
+
+            // 复制预制体
             GameObject btnObj = Instantiate(categoryButtonPrefab, categoryScrollContent);
             Button btn = btnObj.GetComponent<Button>();
             Text label = btnObj.GetComponentInChildren<Text>();
@@ -699,9 +795,11 @@ public class MainMenuManager : MonoBehaviour
 
             if (label != null) label.text = category;
 
+            // 闭包捕获：必须用局部变量，否则所有按钮的 index 都是循环结束时的值
             int index = i;
             btn.onClick.AddListener(() => OnCategoryClicked(index));
 
+            // 启动预览图协程（不断切换预览图）
             if (previewImage != null)
             {
                 Coroutine coroutine = StartCoroutine(UpdateCategoryPreview(previewImage, category));
@@ -709,16 +807,16 @@ public class MainMenuManager : MonoBehaviour
             }
         }
 
-        // 上传分类按钮
+        // ---------- "上传"分类按钮 ----------
         GameObject uploadBtnObj = Instantiate(categoryButtonPrefab, categoryScrollContent);
         Button uploadBtn = uploadBtnObj.GetComponent<Button>();
         Text uploadLabel = uploadBtnObj.GetComponentInChildren<Text>();
         Image uploadPreview = uploadBtnObj.transform.Find("PreviewImage")?.GetComponent<Image>();
         if (uploadLabel != null) uploadLabel.text = "上传";
-        if (uploadPreview != null) uploadPreview.sprite = null;
+        if (uploadPreview != null) uploadPreview.sprite = null;   // 上传按钮无预览图
         uploadBtn.onClick.AddListener(() => OnCategoryClicked(GameDataManager.Categories.Length));
 
-        // 共享分类按钮
+        // ---------- "共享"分类按钮 ----------
         GameObject sharedBtnObj = Instantiate(categoryButtonPrefab, categoryScrollContent);
         Button sharedBtn = sharedBtnObj.GetComponent<Button>();
         Text sharedLabel = sharedBtnObj.GetComponentInChildren<Text>();
@@ -732,6 +830,10 @@ public class MainMenuManager : MonoBehaviour
 
     #region 体力显示
 
+    /// <summary>
+    /// 每秒刷新一次体力显示。
+    /// 无限循环的协程，只要 MainMenuManager 存在就一直运行。
+    /// </summary>
     private IEnumerator UpdateStaminaUI()
     {
         while (true)
@@ -750,7 +852,7 @@ public class MainMenuManager : MonoBehaviour
         {
             staminaSlider.maxValue = GameDataManager.MaxStamina;
             staminaSlider.value = GameDataManager.Stamina;
-            staminaSlider.interactable = false;
+            staminaSlider.interactable = false;   // 只显示，不允许拖
         }
     }
 
@@ -758,22 +860,32 @@ public class MainMenuManager : MonoBehaviour
 
     #region 分类预览
 
+    /// <summary>
+    /// 分类按钮的预览图循环：每隔几秒切换一张随机图。
+    /// 用淡入淡出过渡，看起来更自然。
+    /// </summary>
     private IEnumerator UpdateCategoryPreview(Image previewImage, string category)
     {
         if (previewImage == null) yield break;
 
+        // 拿到该分类的所有图
         Sprite[] sprites = AssetBundleManager.Instance.GetCategorySprites(category);
         if (sprites.Length == 0) yield break;
 
+        // 无限循环（只要按钮还存在就一直运行）
         while (previewImage != null)
         {
             Sprite newSprite = sprites[Random.Range(0, sprites.Length)];
-            yield return StartCoroutine(FadeToSprite(previewImage, newSprite));
+            yield return StartCoroutine(FadeToSprite(previewImage, newSprite));   // 淡入淡出
+
             if (previewImage == null) yield break;
-            yield return new WaitForSeconds(previewChangeInterval);
+            yield return new WaitForSeconds(previewChangeInterval);   // 停留几秒
         }
     }
 
+    /// <summary>
+    /// 淡出旧图 → 换图 → 淡入新图。
+    /// </summary>
     private IEnumerator FadeToSprite(Image image, Sprite newSprite)
     {
         if (image == null) yield break;
@@ -782,6 +894,7 @@ public class MainMenuManager : MonoBehaviour
         Color startColor = image.color;
         Color transparentColor = new Color(startColor.r, startColor.g, startColor.b, 0f);
 
+        // 淡出
         while (elapsed < fadeDuration)
         {
             if (image == null) yield break;
@@ -791,8 +904,11 @@ public class MainMenuManager : MonoBehaviour
         }
 
         if (image == null) yield break;
+
+        // 换图（在完全透明时进行，用户看不到切换瞬间）
         image.sprite = newSprite;
 
+        // 淡入
         elapsed = 0f;
         while (elapsed < fadeDuration)
         {
@@ -809,8 +925,13 @@ public class MainMenuManager : MonoBehaviour
 
     #region 分类点击与图片选择
 
+    /// <summary>
+    /// 点击分类按钮。
+    /// index == Categories.Length 表示点击了"上传"按钮。
+    /// </summary>
     private void OnCategoryClicked(int index)
     {
+        // 点击"上传"分类
         if (index == GameDataManager.Categories.Length)
         {
             selectedCategory = GameDataManager.UploadCategory;
@@ -819,6 +940,7 @@ public class MainMenuManager : MonoBehaviour
             return;
         }
 
+        // 点击普通分类
         string category = GameDataManager.Categories[index];
         selectedCategory = category;
         ShowPanel(imageSelectPanel);
@@ -826,10 +948,15 @@ public class MainMenuManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 异步填充图片选择面板（防重入 + 释放旧动态 Sprite）。
+    /// 异步填充图片选择面板。
+    /// 
+    /// 【为什么要异步？】
+    /// 上传分类的图片需要从文件系统读取 + 解码（耗时）。
+    /// 如果同步加载，UI 会卡住。
     /// </summary>
     private IEnumerator OpenImageSelectPanelAsync(string category)
     {
+        // 防重入：上一次还没加载完就忽略
         if (isImagePanelLoading)
         {
             Debug.Log("图片面板正在加载中，忽略本次请求");
@@ -837,12 +964,14 @@ public class MainMenuManager : MonoBehaviour
         }
         isImagePanelLoading = true;
 
-        // 释放上一次的动态 Sprite
+        // 释放上一次的动态 Sprite（上传/共享来源）
         ReleaseDynamicSprites();
 
+        // 清理旧按钮
         foreach (Transform child in imageScrollContent)
             Destroy(child.gameObject);
 
+        // 设置网格布局
         GridLayoutGroup grid = imageScrollContent.GetComponent<GridLayoutGroup>();
         if (grid == null) grid = imageScrollContent.gameObject.AddComponent<GridLayoutGroup>();
         grid.cellSize = new Vector2(300, 300);
@@ -851,7 +980,7 @@ public class MainMenuManager : MonoBehaviour
         grid.constraintCount = 3;
         grid.childAlignment = TextAnchor.UpperCenter;
 
-        // 上传分类：从文件系统异步加载
+        // ---------- 上传分类：从文件系统异步加载 ----------
         if (category == GameDataManager.UploadCategory)
         {
             List<string> files = GameDataManager.GetUploadedImages();
@@ -861,17 +990,17 @@ public class MainMenuManager : MonoBehaviour
                 if (!File.Exists(path)) continue;
 
                 Sprite sprite = null;
+                // yield return 等异步加载完成
                 yield return ImageLoader.LoadSpriteFromFileAsync(path, (s) => sprite = s);
                 if (sprite == null) continue;
 
-                dynamicSprites.Add(sprite);
+                dynamicSprites.Add(sprite);   // 记录以便后续释放
                 CreateImageButton(category, i, sprite, files[i]);
 
-                // 每张让出一帧，保持 UI 流畅
-                yield return null;
+                yield return null;   // 每张让出一帧，保持 UI 流畅
             }
         }
-        // 普通分类：从 AssetBundle 同步加载
+        // ---------- 普通分类：从 AssetBundle 同步加载 ----------
         else
         {
             Sprite[] loadedSprites = AssetBundleManager.Instance.GetCategorySprites(category);
@@ -883,6 +1012,7 @@ public class MainMenuManager : MonoBehaviour
             }
         }
 
+        // 强制重建布局
         Canvas.ForceUpdateCanvases();
         LayoutRebuilder.ForceRebuildLayoutImmediate(imageScrollContent);
 
@@ -890,7 +1020,7 @@ public class MainMenuManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 创建单个图片按钮（用于图片选择面板）。
+    /// 在图片选择面板中创建一个图片按钮。
     /// </summary>
     private void CreateImageButton(string category, int imageIndex, Sprite sprite, string name)
     {
@@ -901,12 +1031,14 @@ public class MainMenuManager : MonoBehaviour
 
         if (img != null) img.sprite = sprite;
 
+        // 上传分类：不显示价格标签
         if (category == GameDataManager.UploadCategory)
         {
             if (label != null) label.text = "";
         }
         else
         {
+            // 普通分类：判断是否解锁，未解锁显示价格、变灰
             bool unlocked = GameDataManager.IsImageUnlocked(category, imageIndex);
             if (img != null)
                 img.color = unlocked ? Color.white : new Color(0.5f, 0.5f, 0.5f, 0.7f);
@@ -914,12 +1046,19 @@ public class MainMenuManager : MonoBehaviour
                 label.text = unlocked ? "" : $"{GameDataManager.GetImagePrice(category, imageIndex)}金币";
         }
 
+        // 闭包捕获
         int idx = imageIndex;
         imgBtn.onClick.AddListener(() => OnImageClicked(idx));
     }
 
+    /// <summary>
+    /// 点击某张图片。
+    /// - 已解锁 → 进难度选择面板
+    /// - 未解锁 → 进购买面板
+    /// </summary>
     private void OnImageClicked(int imageIndex)
     {
+        // 上传分类：直接进难度选择（不需要解锁）
         if (selectedCategory == GameDataManager.UploadCategory)
         {
             selectedImageIndex = imageIndex;
@@ -937,11 +1076,13 @@ public class MainMenuManager : MonoBehaviour
             string category = selectedCategory;
             if (GameDataManager.IsImageUnlocked(category, imageIndex))
             {
+                // 已解锁 → 直接进难度
                 selectedImageIndex = imageIndex;
                 ShowPanel(difficultyPanel);
             }
             else
             {
+                // 未解锁 → 弹购买面板
                 pendingPurchaseCategory = category;
                 pendingPurchaseImageIndex = imageIndex;
                 int price = GameDataManager.GetImagePrice(category, imageIndex);
@@ -955,8 +1096,14 @@ public class MainMenuManager : MonoBehaviour
 
     #region 购买逻辑
 
+    /// <summary>
+    /// 确认购买。
+    /// 根据 pendingPurchaseImageIndex 是否为 -1 区分是"买分类"还是"买图片"。
+    /// 本项目分类都免费，所以实际只会走"买图片"分支。
+    /// </summary>
     private void ConfirmPurchase()
     {
+        // ---------- 分类购买 ----------
         if (pendingPurchaseImageIndex == -1)
         {
             int price = GameDataManager.CategoryPrices[Array.IndexOf(GameDataManager.Categories, pendingPurchaseCategory)];
@@ -974,6 +1121,7 @@ public class MainMenuManager : MonoBehaviour
                 StartCoroutine(FlashCoinTextRed());
             }
         }
+        // ---------- 图片购买 ----------
         else
         {
             int price = GameDataManager.GetImagePrice(pendingPurchaseCategory, pendingPurchaseImageIndex);
@@ -982,6 +1130,7 @@ public class MainMenuManager : MonoBehaviour
                 GameDataManager.UnlockImage(pendingPurchaseCategory, pendingPurchaseImageIndex);
                 UpdateCoinDisplay();
                 ShowPanel(imageSelectPanel);
+                // 刷新图片列表（显示最新解锁状态）
                 StartCoroutine(OpenImageSelectPanelAsync(pendingPurchaseCategory));
                 Debug.Log($"解锁图片 {pendingPurchaseCategory}_{pendingPurchaseImageIndex} 成功！");
             }
@@ -993,8 +1142,12 @@ public class MainMenuManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 金币不足时让金币文字闪红三次。
+    /// </summary>
     private IEnumerator FlashCoinTextRed()
     {
+        // 防重复：正在闪的时候不要再来一次
         if (coinText == null || isFlashing) yield break;
 
         isFlashing = true;
@@ -1022,13 +1175,14 @@ public class MainMenuManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 刷新上传管理面板。
-    /// 如果旧刷新还在进行，则先取消旧协程，再重新读取最新的上传列表。
+    /// 请求刷新上传管理面板。
+    /// 如果旧刷新还在进行，先取消它，再启动新的。
     /// </summary>
     private void PopulateUploadManagePanel()
     {
         UploadDebug("请求刷新上传管理面板");
 
+        // 取消旧协程
         if (uploadPanelCoroutine != null)
         {
             UploadDebug("发现旧的上传 UI 刷新协程，停止旧协程");
@@ -1036,57 +1190,34 @@ public class MainMenuManager : MonoBehaviour
             uploadPanelCoroutine = null;
         }
 
-        if (uploadManagePanel == null)
-        {
-            UploadDebug("ERROR: uploadManagePanel 未绑定");
-            return;
-        }
-
-        if (uploadScrollContent == null)
-        {
-            UploadDebug("ERROR: uploadScrollContent 未绑定");
-            return;
-        }
-
-        if (imageButtonPrefab == null)
-        {
-            UploadDebug("ERROR: imageButtonPrefab 未绑定");
-            return;
-        }
+        // 检查绑定
+        if (uploadManagePanel == null) { UploadDebug("ERROR: uploadManagePanel 未绑定"); return; }
+        if (uploadScrollContent == null) { UploadDebug("ERROR: uploadScrollContent 未绑定"); return; }
+        if (imageButtonPrefab == null) { UploadDebug("ERROR: imageButtonPrefab 未绑定"); return; }
 
         uploadPanelCoroutine = StartCoroutine(PopulateUploadManagePanelAsync());
     }
 
     /// <summary>
-    /// 将 PNG 字节保存到 Uploads 目录，写入 PlayerPrefs 后立即刷新上传 UI。
+    /// 把 PNG 字节保存到 Uploads 目录。
+    /// 步骤：验证 PNG → 写文件 → 写 PlayerPrefs → 刷新 UI。
     /// </summary>
     private IEnumerator SaveUploadedPng(byte[] pngBytes)
     {
         UploadDebug("进入 SaveUploadedPng()");
 
-        if (pngBytes == null)
-        {
-            UploadDebug("ERROR: pngBytes == null");
-            ShowConfirm("上传失败:\nPNG 编码失败", null);
-            yield break;
-        }
-
+        // ---------- 参数检查 ----------
+        if (pngBytes == null) { UploadDebug("ERROR: pngBytes == null"); ShowConfirm("上传失败:\nPNG 编码失败", null); yield break; }
         UploadDebug($"PNG bytes = {pngBytes.Length}");
+        if (pngBytes.Length < 100) { UploadDebug("ERROR: PNG 字节长度 < 100"); ShowConfirm("上传失败:\nPNG 编码失败", null); yield break; }
 
-        if (pngBytes.Length < 100)
-        {
-            UploadDebug("ERROR: PNG 字节长度 < 100");
-            ShowConfirm("上传失败:\nPNG 编码失败", null);
-            yield break;
-        }
-
-        // 1. 在内存中验证 PNG
+        // ---------- 1. 验证 PNG 有效性 ----------
         Texture2D testTex = null;
         try
         {
+            // 用 LoadImage 尝试解码，成功说明是合法 PNG
             testTex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
             bool valid = testTex.LoadImage(pngBytes);
-
             if (!valid)
             {
                 UploadDebug("ERROR: Texture2D.LoadImage(PNG) 返回 false");
@@ -1094,7 +1225,6 @@ public class MainMenuManager : MonoBehaviour
                 ShowConfirm("上传失败:\nPNG 无法解析", null);
                 yield break;
             }
-
             UploadDebug($"PNG 验证成功: {testTex.width}x{testTex.height}");
         }
         catch (Exception e)
@@ -1104,11 +1234,9 @@ public class MainMenuManager : MonoBehaviour
             ShowConfirm("上传失败:\nPNG 验证异常", null);
             yield break;
         }
+        if (testTex != null) Destroy(testTex);
 
-        if (testTex != null)
-            Destroy(testTex);
-
-        // 2. 写入 Uploads
+        // ---------- 2. 写入 Uploads 目录 ----------
         string uploadDir = Path.Combine(Application.persistentDataPath, "Uploads");
         UploadDebug($"Uploads 目录: {uploadDir}");
 
@@ -1127,6 +1255,7 @@ public class MainMenuManager : MonoBehaviour
             yield break;
         }
 
+        // 用时间戳作为文件名（精确到毫秒，保证不重名）
         string fileName = "upload_" + DateTime.Now.ToString("yyyyMMdd_HHmmss_fff") + ".png";
         string destPath = Path.Combine(uploadDir, fileName);
         UploadDebug($"准备保存: {destPath}");
@@ -1152,13 +1281,14 @@ public class MainMenuManager : MonoBehaviour
             yield break;
         }
 
-        // 3. 写入数据列表
+        // ---------- 3. 写入数据列表（PlayerPrefs） ----------
         try
         {
             GameDataManager.AddUploadedImage(fileName);
             List<string> savedFiles = GameDataManager.GetUploadedImages();
             UploadDebug($"PlayerPrefs 写入成功，当前上传列表数量: {savedFiles.Count}");
 
+            // 验证写入是否生效
             bool recorded = savedFiles.Contains(fileName);
             UploadDebug($"检查新文件是否在列表中: {recorded} ({fileName})");
 
@@ -1176,7 +1306,7 @@ public class MainMenuManager : MonoBehaviour
             yield break;
         }
 
-        // 4. 刷新分类按钮
+        // ---------- 4. 刷新分类按钮（如果当前可见） ----------
         if (categoryScrollView != null && categoryScrollView.activeSelf)
         {
             UploadDebug("当前分类面板可见，刷新分类按钮");
@@ -1187,7 +1317,7 @@ public class MainMenuManager : MonoBehaviour
             UploadDebug("分类面板当前不可见，跳过分类按钮刷新");
         }
 
-        // 5. 刷新上传管理 UI
+        // ---------- 5. 刷新上传管理 UI ----------
         UploadDebug("开始刷新上传管理 UI");
         PopulateUploadManagePanel();
 
@@ -1196,25 +1326,19 @@ public class MainMenuManager : MonoBehaviour
         UploadDebug("SaveUploadedPng() 完成");
     }
 
+    /// <summary>
+    /// 异步刷新上传管理面板。
+    /// 遍历已上传文件，为每个创建缩略图按钮。
+    /// </summary>
     private IEnumerator PopulateUploadManagePanelAsync()
     {
         UploadDebug("========== 开始刷新上传 UI ==========");
 
-        if (uploadScrollContent == null)
-        {
-            UploadDebug("ERROR: uploadScrollContent == null");
-            uploadPanelCoroutine = null;
-            yield break;
-        }
+        // 绑定检查
+        if (uploadScrollContent == null) { UploadDebug("ERROR: uploadScrollContent == null"); uploadPanelCoroutine = null; yield break; }
+        if (imageButtonPrefab == null) { UploadDebug("ERROR: imageButtonPrefab == null"); uploadPanelCoroutine = null; yield break; }
 
-        if (imageButtonPrefab == null)
-        {
-            UploadDebug("ERROR: imageButtonPrefab == null");
-            uploadPanelCoroutine = null;
-            yield break;
-        }
-
-        // 清理旧动态 Sprite
+        // 释放旧 Sprite
         UploadDebug($"清理 dynamicSprites，当前数量={dynamicSprites.Count}");
         ReleaseDynamicSprites();
 
@@ -1224,111 +1348,76 @@ public class MainMenuManager : MonoBehaviour
         foreach (Transform child in uploadScrollContent)
             Destroy(child.gameObject);
 
-        yield return null;
+        yield return null;   // 等一帧，让 Destroy 生效
 
+        // 网格布局
         GridLayoutGroup grid = uploadScrollContent.GetComponent<GridLayoutGroup>();
-        if (grid == null)
-            grid = uploadScrollContent.gameObject.AddComponent<GridLayoutGroup>();
-
+        if (grid == null) grid = uploadScrollContent.gameObject.AddComponent<GridLayoutGroup>();
         grid.cellSize = new Vector2(200, 200);
         grid.spacing = new Vector2(20, 20);
         grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
         grid.constraintCount = 3;
         grid.childAlignment = TextAnchor.UpperCenter;
 
+        // 自适应高度
         ContentSizeFitter fitter = uploadScrollContent.GetComponent<ContentSizeFitter>();
-        if (fitter == null)
-            fitter = uploadScrollContent.gameObject.AddComponent<ContentSizeFitter>();
-
+        if (fitter == null) fitter = uploadScrollContent.gameObject.AddComponent<ContentSizeFitter>();
         fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
         fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
 
+        // 读取文件列表
         List<string> files = GameDataManager.GetUploadedImages();
         UploadDebug($"从 GameDataManager 读取上传列表: count={files.Count}");
-
-        if (files.Count == 0)
-        {
-            UploadDebug("当前没有任何上传图片记录");
-        }
 
         int createdCount = 0;
 
         foreach (string file in files)
         {
-            if (string.IsNullOrEmpty(file))
-            {
-                UploadDebug("WARNING: 上传列表里出现空文件名，跳过");
-                continue;
-            }
+            if (string.IsNullOrEmpty(file)) { UploadDebug("WARNING: 空文件名，跳过"); continue; }
 
             string path = GameDataManager.GetUploadedImagePath(file);
             bool exists = File.Exists(path);
             UploadDebug($"检查[{createdCount}] file={file}, exists={exists}");
 
-            if (!exists)
-            {
-                UploadDebug($"WARNING: 文件不存在，跳过: {path}");
-                continue;
-            }
+            if (!exists) { UploadDebug($"WARNING: 文件不存在，跳过: {path}"); continue; }
 
             long length = 0;
             try { length = new FileInfo(path).Length; } catch { }
             UploadDebug($"文件大小: {length} bytes");
 
+            // 异步加载 Sprite
             Sprite sprite = null;
             yield return ImageLoader.LoadSpriteFromFileAsync(path, (s) => sprite = s);
 
-            if (sprite == null)
-            {
-                UploadDebug($"ERROR: ImageLoader 创建 Sprite 失败: {file}");
-                continue;
-            }
+            if (sprite == null) { UploadDebug($"ERROR: ImageLoader 创建 Sprite 失败: {file}"); continue; }
 
             UploadDebug($"Sprite 创建成功: {sprite.name}, {sprite.texture.width}x{sprite.texture.height}");
             dynamicSprites.Add(sprite);
 
+            // 创建按钮
             GameObject btnObj = null;
-            try
-            {
-                btnObj = Instantiate(imageButtonPrefab, uploadScrollContent);
-            }
-            catch (Exception e)
-            {
-                UploadDebug($"ERROR: Instantiate imageButtonPrefab 异常: {e}");
-                continue;
-            }
+            try { btnObj = Instantiate(imageButtonPrefab, uploadScrollContent); }
+            catch (Exception e) { UploadDebug($"ERROR: Instantiate 异常: {e}"); continue; }
 
-            if (btnObj == null)
-            {
-                UploadDebug("ERROR: Instantiate 返回 null");
-                continue;
-            }
+            if (btnObj == null) { UploadDebug("ERROR: Instantiate 返回 null"); continue; }
 
             Button btn = btnObj.GetComponent<Button>();
-            if (btn == null)
-            {
-                UploadDebug($"WARNING: 图片按钮 Prefab 上没有 Button: {btnObj.name}");
-            }
+            if (btn == null) UploadDebug($"WARNING: 按钮 Prefab 上没有 Button: {btnObj.name}");
 
-            // 优先查找名为 Image 的子节点；找不到就自动找第一个 Image
+            // 找 Image 组件（优先找名为 Image 的子节点）
             Image img = btnObj.transform.Find("Image")?.GetComponent<Image>();
-            if (img == null)
-                img = btnObj.GetComponentInChildren<Image>(true);
+            if (img == null) img = btnObj.GetComponentInChildren<Image>(true);
 
-            UploadDebug($"按钮创建成功: {btnObj.name}, Image组件存在={img != null}");
+            UploadDebug($"按钮创建成功: {btnObj.name}, Image={img != null}");
 
             if (img != null)
             {
                 img.enabled = true;
                 img.sprite = sprite;
                 img.color = Color.white;
-                UploadDebug($"Image 已设置 Sprite: sprite={img.sprite != null}, enabled={img.enabled}");
-            }
-            else
-            {
-                UploadDebug("ERROR: 找不到上传按钮里的 Image 组件");
             }
 
+            // 绑定删除事件
             if (btn != null)
             {
                 string fileNameForButton = file;
@@ -1341,25 +1430,31 @@ public class MainMenuManager : MonoBehaviour
                 });
             }
 
+            // 设置"删除"文字
             Text label = btnObj.GetComponentInChildren<Text>(true);
-            if (label != null)
-                label.text = "删除";
+            if (label != null) label.text = "删除";
 
             createdCount++;
             UploadDebug($"上传图片 UI 创建完成: {createdCount}/{files.Count}");
 
-            yield return null;
+            yield return null;   // 每张让出一帧
         }
 
         Canvas.ForceUpdateCanvases();
         LayoutRebuilder.ForceRebuildLayoutImmediate(uploadScrollContent);
 
-        UploadDebug($"布局刷新完成: content.childCount={uploadScrollContent.childCount}, createdCount={createdCount}");
+        UploadDebug($"布局刷新完成: childCount={uploadScrollContent.childCount}, created={createdCount}");
 
         uploadPanelCoroutine = null;
         UploadDebug("========== 上传 UI 刷新完成 ==========");
     }
 
+    /// <summary>
+    /// 点击"添加图片"按钮。
+    /// 
+    /// 【编辑器】用 EditorUtility.OpenFilePanel 打开文件选择框
+    /// 【真机】用 NativeGallery.GetImageFromGallery 打开相册
+    /// </summary>
     private void OnUploadButtonClicked()
     {
         ClearUploadDebug();
@@ -1368,9 +1463,9 @@ public class MainMenuManager : MonoBehaviour
         UploadDebug($"persistentDataPath: {Application.persistentDataPath}");
 
 #if UNITY_EDITOR
+        // 编辑器：文件选择器
         UploadDebug("运行在 Unity Editor，打开文件选择器");
         string path = UnityEditor.EditorUtility.OpenFilePanel("选择图片", "", "png,jpg,jpeg");
-
         UploadDebug($"Editor 选择结果: {path}");
 
         if (!string.IsNullOrEmpty(path))
@@ -1378,6 +1473,7 @@ public class MainMenuManager : MonoBehaviour
         else
             UploadDebug("用户取消选择");
 #else
+        // 真机：调用 NativeGallery 打开相册
         UploadDebug("调用 NativeGallery.GetImageFromGallery()");
 
         NativeGallery.GetImageFromGallery((path) =>
@@ -1392,8 +1488,8 @@ public class MainMenuManager : MonoBehaviour
 
             UploadDebug($"path.StartsWith(content://) = {path.StartsWith("content://")}");
 
+            // 用 NativeGallery 直接加载为 Texture2D（它会处理各种格式）
             Texture2D texture = null;
-
             try
             {
                 UploadDebug("开始 NativeGallery.LoadImageAtPath(path, 2048, false)");
@@ -1415,6 +1511,7 @@ public class MainMenuManager : MonoBehaviour
 
             UploadDebug($"NativeGallery 图片加载成功: {texture.width}x{texture.height}");
 
+            // 编码为 PNG 字节
             byte[] pngBytes = null;
             try
             {
@@ -1427,7 +1524,7 @@ public class MainMenuManager : MonoBehaviour
             }
             finally
             {
-                Destroy(texture);
+                Destroy(texture);   // 立即销毁临时纹理
             }
 
             if (pngBytes == null || pngBytes.Length < 100)
@@ -1444,18 +1541,14 @@ public class MainMenuManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Editor / 文件路径模式使用的后台解码流程。
+    /// 从文件路径异步解码图片（编辑器 / content:// URI）。
+    /// 用后台线程做 Android 原生解码。
     /// </summary>
     private IEnumerator ProcessUploadedImageAsync(string sourcePath)
     {
         UploadDebug("========== ProcessUploadedImageAsync ==========");
 
-        if (string.IsNullOrEmpty(sourcePath))
-        {
-            UploadDebug("ERROR: sourcePath 为空");
-            ShowConfirm("上传失败:\nsourcePath 为空", null);
-            yield break;
-        }
+        if (string.IsNullOrEmpty(sourcePath)) { UploadDebug("ERROR: sourcePath 为空"); ShowConfirm("上传失败:\nsourcePath 为空", null); yield break; }
 
         bool isContentUri = sourcePath.StartsWith("content://");
         UploadDebug($"sourcePath = {sourcePath}");
@@ -1468,6 +1561,7 @@ public class MainMenuManager : MonoBehaviour
             yield break;
         }
 
+        // 后台线程解码
         byte[] pngBytes = null;
         bool decodingDone = false;
         string decodeError = null;
@@ -1480,29 +1574,18 @@ public class MainMenuManager : MonoBehaviour
                     ? AndroidImageDecoder.DecodeUriToPngBytes(sourcePath)
                     : AndroidImageDecoder.DecodeToPngBytes(sourcePath);
             }
-            catch (Exception e)
-            {
-                decodeError = e.ToString();
-                pngBytes = null;
-            }
-            finally
-            {
-                decodingDone = true;
-            }
+            catch (Exception e) { decodeError = e.ToString(); pngBytes = null; }
+            finally { decodingDone = true; }
         });
 
-        while (!decodingDone)
-            yield return null;
+        while (!decodingDone) yield return null;
 
-        if (!string.IsNullOrEmpty(decodeError))
-            UploadDebug($"ERROR: 后台解码异常: {decodeError}");
+        if (!string.IsNullOrEmpty(decodeError)) UploadDebug($"ERROR: 后台解码异常: {decodeError}");
 
         if (pngBytes == null || pngBytes.Length < 100)
         {
             string reason = AndroidImageDecoder.LastError;
-            if (string.IsNullOrEmpty(reason))
-                reason = "解码返回空";
-
+            if (string.IsNullOrEmpty(reason)) reason = "解码返回空";
             UploadDebug($"ERROR: 解码失败: {reason}");
             ShowConfirm($"上传失败:\n{reason}", null);
             yield break;
@@ -1510,7 +1593,7 @@ public class MainMenuManager : MonoBehaviour
 
         UploadDebug($"后台解码成功: {pngBytes.Length} bytes");
 
-        // 统一交给保存流程处理
+        // 复用保存流程
         yield return SaveUploadedPng(pngBytes);
     }
 
@@ -1521,11 +1604,14 @@ public class MainMenuManager : MonoBehaviour
     private void OnShareButtonClicked()
     {
         UploadDebug("========== 点击【分享】 ==========");
-        LANShareManager.Instance.StartSharing();
+        LANShareManager.Instance.StartSharing();     // 启动 TCP 服务器 + UDP 广播
         shareStatusText.text = "等待客户端连接...";
-        StartCoroutine(WaitForClientConnection());
+        StartCoroutine(WaitForClientConnection());   // 等待客户端连接
     }
 
+    /// <summary>
+    /// 轮询等待客户端连接，连接后自动打开分享选择面板。
+    /// </summary>
     private IEnumerator WaitForClientConnection()
     {
         UploadDebug("等待客户端连接...");
@@ -1541,18 +1627,18 @@ public class MainMenuManager : MonoBehaviour
     {
         UploadDebug("========== 点击【接收】 ==========");
         ShowPanel(deviceListPanel);
-        StartDiscovery();
+        StartDiscovery();   // 开始搜索设备
     }
 
     private void OpenShareSelectPanel()
     {
-        shareSelectedFiles.Clear();
+        shareSelectedFiles.Clear();   // 清空上次选择
         ShowPanel(shareSelectPanel);
         PopulateShareSelectPanel();
     }
 
     /// <summary>
-    /// 异步填充分享选择面板（防重入 + 释放旧动态 Sprite）。
+    /// 异步填充分享选择面板。
     /// </summary>
     private void PopulateShareSelectPanel()
     {
@@ -1561,11 +1647,7 @@ public class MainMenuManager : MonoBehaviour
 
     private IEnumerator PopulateShareSelectPanelAsync()
     {
-        if (isSharePanelLoading)
-        {
-            Debug.Log("分享面板正在加载中，忽略本次请求");
-            yield break;
-        }
+        if (isSharePanelLoading) { Debug.Log("分享面板正在加载中"); yield break; }
         isSharePanelLoading = true;
 
         ReleaseDynamicSprites();
@@ -1600,9 +1682,12 @@ public class MainMenuManager : MonoBehaviour
             Image img = btnObj.transform.Find("Image")?.GetComponent<Image>();
             if (img != null) img.sprite = sprite;
 
+            // 用局部变量捕获，防止闭包陷阱
             string fileName = file;
             Image capturedImg = img;
             Button capturedBtn = btn;
+
+            // 点击切换"选中"状态（绿色 = 已选，白色 = 未选）
             btn.onClick.AddListener(() =>
             {
                 if (shareSelectedFiles.Contains(fileName))
@@ -1624,6 +1709,10 @@ public class MainMenuManager : MonoBehaviour
         isSharePanelLoading = false;
     }
 
+    /// <summary>
+    /// 服务端点击【分享】按钮：把选中的文件推给 LANShareManager，
+    /// 并开始发就绪广播（不关闭面板）。
+    /// </summary>
     private void StartSharingSelectedFiles()
     {
         if (shareSelectedFiles.Count == 0)
@@ -1636,28 +1725,31 @@ public class MainMenuManager : MonoBehaviour
         foreach (var f in shareSelectedFiles)
             UploadDebug($"  - {f}");
 
+        // 告诉 LANShareManager 要分享哪些文件
         LANShareManager.Instance.SetSharedFiles(shareSelectedFiles);
+
+        // 开始周期性发送就绪广播
         LANShareManager.Instance.NotifyClientsReady();
 
         shareStatusText.text = $"已分享 {shareSelectedFiles.Count} 张，等待下载...";
         UploadDebug("已发送就绪广播，分享面板保持打开（可继续修改选择）");
 
-        // ★ 不关闭 shareSelectPanel，不切换面板
-        // 用户可以继续勾选/取消，再次点击【分享】按钮会重新广播
+        // 注意：不关闭 shareSelectPanel，用户可以继续修改选择再点分享
     }
 
+    /// <summary>
+    /// 开始搜索设备（接收方）。
+    /// </summary>
     private void StartDiscovery()
     {
-        if (deviceListContent == null)
-        {
-            UploadDebug("ERROR: deviceListContent 未赋值！");
-            return;
-        }
+        if (deviceListContent == null) { UploadDebug("ERROR: deviceListContent 未赋值！"); return; }
 
+        // 清理旧按钮
         foreach (Transform child in deviceListContent)
             Destroy(child.gameObject);
         discoveredDevices.Clear();
 
+        // 垂直布局
         VerticalLayoutGroup layout = deviceListContent.GetComponent<VerticalLayoutGroup>();
         if (layout == null)
         {
@@ -1673,20 +1765,24 @@ public class MainMenuManager : MonoBehaviour
         layout.childForceExpandWidth = false;
         layout.childForceExpandHeight = false;
 
+        // 启动发现（回调在主线程执行）
         LANShareManager.Instance.StartDiscovery((deviceName, ip, port, isReady) =>
         {
-            UploadDebug($"【发现回调】device={deviceName}, ip={ip}, port={port}, isReady={isReady}, connectedIP={connectedServerIP}");
+            UploadDebug($"【发现回调】device={deviceName}, ip={ip}, port={port}, isReady={isReady}");
 
             if (isReady)
             {
+                // 收到就绪广播：可能服务端刚分享完
                 UploadDebug($"【就绪广播】收到，IP={ip}");
                 if (LANShareManager.Instance.ConnectedToServer)
                 {
+                    // 已经连接过 → 直接刷新列表
                     UploadDebug("【就绪广播】已连接状态，请求图片列表");
                     RequestRemoteImageList();
                 }
                 else
                 {
+                    // 未连接 → 添加设备按钮（标记为可下载）
                     string entry = $"{deviceName}|{ip}|{port}";
                     if (!discoveredDevices.Contains(entry))
                     {
@@ -1701,6 +1797,7 @@ public class MainMenuManager : MonoBehaviour
             }
             else
             {
+                // 普通广播：设备存在但未就绪
                 string entry = $"{deviceName}|{ip}|{port}";
                 if (!discoveredDevices.Contains(entry))
                 {
@@ -1711,6 +1808,10 @@ public class MainMenuManager : MonoBehaviour
         });
     }
 
+    /// <summary>
+    /// 请求远程图片列表（接收方）。
+    /// 注意：新流程不显示缩略图列表，只更新状态文字。
+    /// </summary>
     private void RequestRemoteImageList()
     {
         UploadDebug("开始请求远程图片列表...");
@@ -1721,19 +1822,19 @@ public class MainMenuManager : MonoBehaviour
             remoteImageFiles = list;
 
             if (list.Count == 0)
-            {
                 remoteStatusText.text = "对方还没有分享图片，等待中...";
-            }
             else
-            {
                 remoteStatusText.text = $"对方分享了 {list.Count} 张，点击【确认下载】";
-            }
         });
     }
 
+    /// <summary>
+    /// 为发现的设备创建一个按钮。
+    /// </summary>
     private void AddDeviceButton(string deviceName, string ip, int port, bool isReady)
     {
         GameObject btnObj = Instantiate(deviceButtonPrefab, deviceListContent);
+
         RectTransform rect = btnObj.GetComponent<RectTransform>();
         if (rect != null) rect.sizeDelta = new Vector2(deviceButtonWidth, deviceButtonHeight);
 
@@ -1746,6 +1847,7 @@ public class MainMenuManager : MonoBehaviour
             label.horizontalOverflow = HorizontalWrapMode.Wrap;
         }
 
+        // 点击设备 → 连接
         btn.onClick.AddListener(() =>
         {
             UploadDebug($"========== 点击设备: {deviceName} ({ip}:{port}) ==========");
@@ -1765,13 +1867,16 @@ public class MainMenuManager : MonoBehaviour
         });
     }
 
+    /// <summary>
+    /// 清空远程图片列表（新流程不再显示缩略图）。
+    /// </summary>
     private void PopulateRemoteImages()
     {
-        // 新流程不使用缩略图列表，仅清空
         foreach (Transform child in remoteImageContent)
             Destroy(child.gameObject);
     }
 
+    /// <summary>切换远程图片的选中状态（新流程未使用）。</summary>
     private void ToggleRemoteSelection(int index, GameObject btnObj)
     {
         if (selectedRemoteIndices.Contains(index))
@@ -1790,6 +1895,10 @@ public class MainMenuManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 点击"确认下载"。
+    /// 先请求一次列表确认最新状态，再逐个下载。
+    /// </summary>
     private void DownloadSelectedImages()
     {
         UploadDebug("========== 点击【确认下载】 ==========");
@@ -1810,6 +1919,11 @@ public class MainMenuManager : MonoBehaviour
             StartCoroutine(DownloadAllCoroutine(new List<string>(list)));
         });
     }
+
+    /// <summary>
+    /// 逐个下载所有远程图片。
+    /// 每个文件之间让出一帧，避免卡顿。
+    /// </summary>
     private IEnumerator DownloadAllCoroutine(List<string> files)
     {
         int total = files.Count;
@@ -1824,13 +1938,14 @@ public class MainMenuManager : MonoBehaviour
             bool done = false;
             string savedPath = null;
 
+            // DownloadImageToShared 是同步阻塞的，回调会在返回前执行
             LANShareManager.Instance.DownloadImageToShared(fn, (path) =>
             {
                 savedPath = path;
                 done = true;
             });
 
-            // 等一帧，让 Unity 主线程有机会刷新 UI、也让 socket 有时间稳定
+            // 让出一帧，保持 UI 流畅
             yield return null;
 
             if (done && !string.IsNullOrEmpty(savedPath))
@@ -1853,6 +1968,8 @@ public class MainMenuManager : MonoBehaviour
         remoteStatusText.text = $"下载完成：成功 {completed}/{total}，失败 {failed}";
         UploadDebug($"========== 下载结束：成功 {completed}，失败 {failed} ==========");
     }
+
+    /// <summary>下载全部（备用方法，当前流程未使用）。</summary>
     private void DownloadAllRemoteImages()
     {
         int total = remoteImageFiles.Count;
@@ -1877,6 +1994,7 @@ public class MainMenuManager : MonoBehaviour
         }
     }
 
+    /// <summary>分享停止事件处理。</summary>
     private void HandleSharingStopped()
     {
         UploadDebug("【事件】OnSharingStopped 触发");
@@ -1894,9 +2012,6 @@ public class MainMenuManager : MonoBehaviour
         PopulateSharedImagePanel();
     }
 
-    /// <summary>
-    /// 异步填充共享图片面板（防重入 + 释放旧动态 Sprite）。
-    /// </summary>
     private void PopulateSharedImagePanel()
     {
         StartCoroutine(PopulateSharedImagePanelAsync());
@@ -1904,11 +2019,7 @@ public class MainMenuManager : MonoBehaviour
 
     private IEnumerator PopulateSharedImagePanelAsync()
     {
-        if (isSharedPanelLoading)
-        {
-            Debug.Log("共享面板正在加载中，忽略本次请求");
-            yield break;
-        }
+        if (isSharedPanelLoading) { Debug.Log("共享面板正在加载中"); yield break; }
         isSharedPanelLoading = true;
 
         ReleaseDynamicSprites();
@@ -1952,8 +2063,12 @@ public class MainMenuManager : MonoBehaviour
         isSharedPanelLoading = false;
     }
 
+    /// <summary>
+    /// 点击共享图片 → 进难度选择面板。
+    /// </summary>
     private void OnSharedImageClicked(string fileName)
     {
+        // 用共享列表的索引作为 selectedImageIndex
         selectedImageIndex = GameDataManager.GetSharedImages().IndexOf(fileName);
         ShowPanel(difficultyPanel);
     }
@@ -1963,8 +2078,15 @@ public class MainMenuManager : MonoBehaviour
     #region 动态 Sprite 释放
 
     /// <summary>
-    /// 释放所有动态创建的 Sprite 及其纹理（用于上传/共享图片）。
-    /// 在切换面板或场景销毁时调用。
+    /// 释放所有动态创建的 Sprite 和其纹理。
+    /// 
+    /// 【为什么必须手动释放？】
+    /// 通过 Sprite.Create 创建的 Sprite 和 Texture2D 不会自动被 GC 回收，
+    /// 必须显式 Destroy，否则显存会越占越多。
+    /// 
+    /// 【释放顺序】
+    /// 先销毁 Texture（Sprite 依赖的底层资源），再销毁 Sprite。
+    /// 反过来会导致 Unity 报错。
     /// </summary>
     private void ReleaseDynamicSprites()
     {
@@ -1989,10 +2111,12 @@ public class MainMenuManager : MonoBehaviour
 
     private void OnAdStaminaClicked()
     {
-        adStaminaButton.interactable = false;
+        adStaminaButton.interactable = false;   // 防连点
 
+        // 模拟广告：直接成功（真实项目需接 SDK）
         ShowRewardedAd(() =>
         {
+            // 广告成功：加体力和金币
             GameDataManager.AddStamina(4);
             GameDataManager.AddCoins(2);
             UpdateStaminaDisplay();
@@ -2006,6 +2130,7 @@ public class MainMenuManager : MonoBehaviour
         });
     }
 
+    /// <summary>模拟广告（真实项目需替换为 SDK 调用）。</summary>
     private void ShowRewardedAd(Action onSuccess, Action onFail)
     {
         onSuccess?.Invoke();
@@ -2013,15 +2138,18 @@ public class MainMenuManager : MonoBehaviour
 
     private void OnDailyPuzzleClicked()
     {
+        // 今天已完成
         if (GameDataManager.IsDailyPuzzleCompletedToday())
         {
             ShowConfirm("今日每日拼图已完成，明天再来吧！", null);
             return;
         }
 
+        // 没生成就生成新的
         if (!GameDataManager.IsDailyPuzzleGeneratedToday())
             GameDataManager.GenerateDailyPuzzle();
 
+        // 标记为每日拼图模式
         PlayerPrefs.SetInt("IsDailyPuzzle", 1);
         PlayerPrefs.Save();
         SceneManager.LoadScene("GameScene");
@@ -2038,6 +2166,7 @@ public class MainMenuManager : MonoBehaviour
         confirmPanel.SetActive(true);
         confirmPanel.transform.SetAsLastSibling();
 
+        // 强制提升 Canvas 层级到最上层
         Canvas confirmCanvas = confirmPanel.GetComponent<Canvas>();
         if (confirmCanvas == null)
         {
@@ -2058,6 +2187,11 @@ public class MainMenuManager : MonoBehaviour
 
     #region 游戏启动
 
+    /// <summary>
+    /// 启动游戏场景。
+    /// 把选中的分类、难度、图片索引写入 PlayerPrefs，
+    /// 然后异步加载 GameScene。
+    /// </summary>
     private void StartGame(int gridSize)
     {
         PlayerPrefs.SetString("SelectedCategory", selectedCategory);
@@ -2065,9 +2199,11 @@ public class MainMenuManager : MonoBehaviour
         PlayerPrefs.SetInt("SelectedImageIndex", selectedImageIndex);
         PlayerPrefs.Save();
 
+        // 播放加载音效
         if (loadingSound != null && SoundManager.Instance != null)
             SoundManager.Instance.PlayLoadingSound(loadingSound);
 
+        // 显示加载面板
         loadingPanel.SetActive(true);
         loadingPanel.transform.SetAsLastSibling();
         if (loadingText != null) loadingText.text = "加载中...";
@@ -2075,19 +2211,33 @@ public class MainMenuManager : MonoBehaviour
         StartCoroutine(LoadGameAsync());
     }
 
+    /// <summary>
+    /// 异步加载游戏场景，带假进度条。
+    /// 
+    /// 【为什么是"假进度"？】
+    /// asyncLoad.progress 最大只能到 0.9（Unity 保留最后 0.1 用于激活场景）。
+    /// 而且实际加载可能很快（<0.5 秒），进度条一闪而过，体验不好。
+    /// 所以这里用"实际进度和时间进度取最小值"的方式，
+    /// 保证至少显示 3 秒的加载动画。
+    /// </summary>
     private IEnumerator LoadGameAsync()
     {
         float startTime = Time.realtimeSinceStartup;
         AsyncOperation asyncLoad = SceneManager.LoadSceneAsync("GameScene");
-        asyncLoad.allowSceneActivation = false;
+        asyncLoad.allowSceneActivation = false;   // 手动控制激活时机
 
         float displayProgress = 0f;
         float realProgress = 0f;
 
         while (displayProgress < 1f || asyncLoad.progress < 0.9f)
         {
+            // 实际进度（归一化到 0~1）
             realProgress = Mathf.Clamp01(asyncLoad.progress / 0.9f);
+
+            // 时间进度（3 秒内从 0 到 1）
             float timeProgress = Mathf.Clamp01((Time.realtimeSinceStartup - startTime) / 3f);
+
+            // 取两者最小值，保证进度条不会超过时间进度
             displayProgress = Mathf.Min(realProgress, timeProgress);
 
             if (loadingText != null)
@@ -2100,9 +2250,11 @@ public class MainMenuManager : MonoBehaviour
 
         if (loadingText != null) loadingText.text = "加载中... 100%";
 
+        // 停止加载音效
         if (SoundManager.Instance != null)
             SoundManager.Instance.StopLoadingSound();
 
+        // 允许激活场景（触发实际切换）
         asyncLoad.allowSceneActivation = true;
     }
 
@@ -2122,14 +2274,21 @@ public class MainMenuManager : MonoBehaviour
         ShowPanel(nameInputPanel);
     }
 
+    /// <summary>
+    /// 确认修改名字。
+    /// 校验规则：非空 + 只能包含字母数字。
+    /// </summary>
     private void OnNameConfirmed()
     {
         string name = nameInputField.text.Trim();
+
         if (string.IsNullOrEmpty(name))
         {
             ShowConfirm("名字不能为空", null);
             return;
         }
+
+        // 正则：只允许 a-z A-Z 0-9
         if (!Regex.IsMatch(name, "^[a-zA-Z0-9]+$"))
         {
             ShowConfirm("名字只能包含字母和数字", null);
@@ -2142,16 +2301,22 @@ public class MainMenuManager : MonoBehaviour
         ShowPanel(panelAfterNameChange);
     }
 
+    /// <summary>
+    /// 刷新个人信息 UI：头像、名字、等级、经验条。
+    /// </summary>
     private void UpdateProfileUI()
     {
+        // ---------- 头像 ----------
         if (profileAvatarImage != null)
         {
+            // 从 Resources 加载所有头像（懒加载）
             if (avatarSprites == null || avatarSprites.Length == 0)
                 avatarSprites = Resources.LoadAll<Sprite>("Art/HeadPicture");
 
             int avatarIndex = GameDataManager.GetAvatarIndex();
             if (avatarSprites != null && avatarSprites.Length > 0)
             {
+                // 越界保护
                 if (avatarIndex < 0 || avatarIndex >= avatarSprites.Length)
                     avatarIndex = 0;
                 profileAvatarImage.sprite = avatarSprites[avatarIndex];
@@ -2162,7 +2327,10 @@ public class MainMenuManager : MonoBehaviour
             }
         }
 
+        // ---------- 名字 ----------
         if (profileNameText != null) profileNameText.text = GameDataManager.PlayerName;
+
+        // ---------- 等级和经验 ----------
         if (profileLevelText != null)
             profileLevelText.text = $"等级 {GameDataManager.Level}  {GameDataManager.Experience}/{GameDataManager.GetRequiredExperience(GameDataManager.Level)}";
 
@@ -2178,6 +2346,9 @@ public class MainMenuManager : MonoBehaviour
 
     #region 头像选择
 
+    /// <summary>
+    /// 打开头像选择面板，显示所有可选头像。
+    /// </summary>
     private void OpenAvatarSelectPanel()
     {
         foreach (Transform child in avatarScrollContent)
@@ -2191,6 +2362,7 @@ public class MainMenuManager : MonoBehaviour
         grid.constraintCount = 3;
         grid.childAlignment = TextAnchor.UpperCenter;
 
+        // 从 Resources 加载所有头像
         avatarSprites = Resources.LoadAll<Sprite>("Art/HeadPicture");
         if (avatarSprites.Length == 0)
         {
@@ -2198,8 +2370,10 @@ public class MainMenuManager : MonoBehaviour
             return;
         }
 
+        // 按名字排序，保证每次显示顺序一致
         Array.Sort(avatarSprites, (a, b) => string.Compare(a.name, b.name));
 
+        // 为每个头像创建按钮
         for (int i = 0; i < avatarSprites.Length; i++)
         {
             GameObject btnObj = Instantiate(avatarButtonPrefab, avatarScrollContent);
@@ -2211,6 +2385,7 @@ public class MainMenuManager : MonoBehaviour
             btn.onClick.AddListener(() => OnAvatarClicked(index));
         }
 
+        // 滚动到顶部
         Canvas.ForceUpdateCanvases();
         ScrollRect scrollRect = avatarSelectPanel.GetComponentInChildren<ScrollRect>();
         if (scrollRect != null) scrollRect.verticalNormalizedPosition = 1f;
@@ -2229,6 +2404,9 @@ public class MainMenuManager : MonoBehaviour
 
     #region 收藏面板
 
+    /// <summary>
+    /// 填充收藏面板：显示所有已收藏的图片。
+    /// </summary>
     private void PopulateFavoritesPanel()
     {
         foreach (Transform child in favoritesScrollContent)
@@ -2243,8 +2421,10 @@ public class MainMenuManager : MonoBehaviour
         grid.childAlignment = TextAnchor.UpperCenter;
 
         List<string> favorites = GameDataManager.GetFavorites();
+
         foreach (string fav in favorites)
         {
+            // fav 的格式是 "分类_索引"，拆开
             string[] parts = fav.Split('_');
             if (parts.Length != 2) continue;
 
@@ -2252,6 +2432,7 @@ public class MainMenuManager : MonoBehaviour
             int imageIndex;
             if (!int.TryParse(parts[1], out imageIndex)) continue;
 
+            // 从 AB 里拿该分类的所有 Sprite
             Sprite[] sprites = AssetBundleManager.Instance.GetCategorySprites(category);
             Array.Sort(sprites, (a, b) => string.Compare(a.name, b.name));
             if (imageIndex < 0 || imageIndex >= sprites.Length) continue;
@@ -2262,6 +2443,7 @@ public class MainMenuManager : MonoBehaviour
             Text label = btnObj.GetComponentInChildren<Text>();
 
             bool unlocked = GameDataManager.IsImageUnlocked(category, imageIndex);
+
             if (img != null)
             {
                 img.sprite = sprites[imageIndex];
@@ -2270,18 +2452,22 @@ public class MainMenuManager : MonoBehaviour
             if (label != null)
                 label.text = unlocked ? "" : $"{GameDataManager.GetImagePrice(category, imageIndex)}金币";
 
+            // 闭包捕获
             string cat = category;
             int idx = imageIndex;
+
             btn.onClick.AddListener(() =>
             {
                 if (GameDataManager.IsImageUnlocked(cat, idx))
                 {
+                    // 已解锁 → 进难度
                     selectedCategory = cat;
                     selectedImageIndex = idx;
                     ShowPanel(difficultyPanel);
                 }
                 else
                 {
+                    // 未解锁 → 弹购买
                     pendingPurchaseCategory = cat;
                     pendingPurchaseImageIndex = idx;
                     purchaseText.text = $"是否花费 {GameDataManager.GetImagePrice(cat, idx)} 金币解锁这张图片？";
