@@ -132,6 +132,12 @@ Kazimierz_2.png
 
 **AssetBundleManager** 会在加载 AB 包时，按 `_` 分隔文件名，前缀作为分类名分组缓存。例如 `Kazimierz_3.png` 会被归类到 `Kazimierz` 分类的第 4 张图。
 
+### ⚠️ 版权提醒
+
+本仓库**不包含**任何受版权保护的图片素材。
+
+如需运行游戏，请自行准备图片放到 `Assets/PuzzleArt/分类名/` 目录下，并保证你拥有这些图片的使用权。**请勿将受版权保护的图片用于商业用途。**
+
 ---
 
 ## 🚀 快速开始
@@ -139,7 +145,7 @@ Kazimierz_2.png
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/你的用户名/PuzzleGame.git
+git clone https://github.com/happyljy/PuzzleGame.git
 ```
 
 ### 2. 配置 Unity
@@ -166,19 +172,29 @@ git clone https://github.com/你的用户名/PuzzleGame.git
 | API Compatibility Level | .NET Standard 2.1 |
 | Active Input Handling | **Both** |
 
-进入 `Edit → Project Settings → Player → Other Settings → Configuration`：
-
-- **Active Input Handling** 选 **Both**（同时支持旧的 `Input` 类和新的 `Input System`）
-
 ### 5. 准备图片资源
 
 按上文「图片资源规范」把图片放入 `Assets/PuzzleArt/分类名/` 目录，并按 `类名_序号.png` 命名。
 
-### 6. 构建 AssetBundle
+### 6. 设置图片压缩（重要）
+
+选中 `Assets/PuzzleArt/` 下的所有图片，在 Inspector 的 **Android** 标签页设置：
+
+| 设置项 | 值 |
+|--------|-----|
+| Override for Android | ☑ 勾上 |
+| Max Size | 1024 |
+| Format | **ASTC** |
+| Compressor Quality | Normal |
+| Block Size | **6x6** |
+
+> 这样可以大幅降低内存占用（相比未压缩的 RGBA32 省约 6.5 倍）。
+
+### 7. 构建 AssetBundle
 
 在 Unity 菜单栏选择 `Tools → Build AssetBundles`，AB 包会输出到 `Assets/StreamingAssets/AssetBundles`。
 
-### 7. 打包 APK
+### 8. 打包 APK
 
 `File → Build Settings → Android → Build`。
 
@@ -250,14 +266,64 @@ git clone https://github.com/你的用户名/PuzzleGame.git
 - **上传 / 共享图片**：通过 `ImageLoader.LoadSpriteFromFileAsync` 异步加载本地文件
 - Android 特殊格式（HEIC/WebP）通过 `AndroidImageDecoder` 原生解码
 
+### 拼图进度
+
+- 用 `PlayerPrefs` 存储，key 格式：`PuzzleProgress_分类_图片索引_难度`
+- 值是一个 "0/1" 位串，长度 = 碎片总数
+- 每次锁定碎片后立即保存，拼图完成时清除
+
+---
+
+## 🙏 鸣谢
+
+感谢以下创作者的开源素材：
+
+### 🎵 音效与音乐
+
+以下音频素材来自 [freesound.org](https://freesound.org/)：
+
+- MadGravityStudio
+- mokasza
+- MATUSTRM
+- KrystaPhillps
+- CAT-FOX_ALEX
+- Sadiquecat
+- SilverIllusionist
+- odarmonix
+
+### 🎨 美术资源
+
+- **Prinbles**（来自 [itch.io](https://itch.io/)）—— 按钮、部分面板图片
+
 ---
 
 ## 📄 许可证
 
-本项目采用 [MIT License](LICENSE) 开源。
+本项目**代码**采用 [MIT License](LICENSE) 开源。
+
+### 关于第三方素材
+
+本项目包含的**第三方素材**（音频、美术）遵循各自的原授权协议。
+
+**部分素材可能限制商业使用**，如需将本项目用于商业目的，请确保：
+1. 替换掉所有受限素材，或
+2. 取得原作者的商业授权
+
+### 关于拼图图片
+
+拼图关卡使用的图片为开发者线下拍摄，内容涉及第三方版权内容（如《明日方舟》角色立绘），版权归原版权方所有。
+
+**本项目仅供个人学习与技术交流，不用于任何商业目的。** 如版权方有异议，请联系删除。
 
 ---
 
 ## 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request！
+
+---
+
+## 📧 联系
+
+- 邮箱：lqq2002ljy@gmail.com
+- GitHub：[@happyljy](https://github.com/happyljy)
